@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,6 +28,13 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def validate_security_settings(self) -> "Settings":
+        # Prevent running production mode with the known placeholder JWT secret.
+        if not self.debug and self.secret_key == "change-me-in-production":
+            raise ValueError("Set a real SECRET_KEY when DEBUG is false")
+        return self
 
 
 @lru_cache
