@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WC-L — Minecraft сервер</title>
+    <link rel="dns-prefetch" href="https://mc-heads.net" />
+    <link rel="preconnect" href="https://mc-heads.net" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400;1,600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="static/css/fantasy.css?v=7" />
+  </head>
+  <body data-view="home">
+    <header class="site-header">
+      <button type="button" class="brand" data-go-home aria-label="На главную">
+        <svg width="56" height="56" viewBox="0 0 64 64" aria-hidden="true">
+          <defs>
+            <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color: #3d3530" />
+              <stop offset="100%" style="stop-color: #1a1518" />
+            </linearGradient>
+            <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color: #e8d48b" />
+              <stop offset="100%" style="stop-color: #8a7028" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M32 4 L54 14 V32 C54 46 44 56 32 60 C20 56 10 46 10 32 V14 Z"
+            fill="url(#shieldGrad)"
+            stroke="#c9a227"
+            stroke-width="2"
+          />
+          <path
+            d="M32 12 C26 22 20 28 16 30 C18 42 24 50 32 54 C40 50 46 42 48 30 C44 28 38 22 32 12 Z"
+            fill="none"
+            stroke="url(#goldGrad)"
+            stroke-width="1.2"
+            opacity="0.7"
+          />
+          <text
+            x="32"
+            y="38"
+            text-anchor="middle"
+            font-family="Crimson Text, Georgia, serif"
+            font-size="14"
+            font-weight="700"
+            fill="#c9a227"
+          >
+            WC-L
+          </text>
+          <path
+            d="M48 8 Q52 4 56 8 Q54 14 50 16 Q48 12 48 8"
+            fill="#4a3038"
+            stroke="#c9a227"
+            stroke-width="0.5"
+          />
+          <circle cx="53" cy="10" r="1.5" fill="#8b2942" />
+        </svg>
+        <span class="brand-text">
+          <span class="brand-name">WC-L</span>
+          <span class="brand-tagline">Царство легенд</span>
+        </span>
+      </button>
+
+      <nav class="main-nav" aria-label="Разделы">
+        <button type="button" data-nav="home" class="is-active">Главная</button>
+        <button type="button" data-nav="about">О сервере</button>
+        <button type="button" data-nav="rules">Правила</button>
+        <button type="button" data-nav="news">Новости</button>
+        <button type="button" data-nav="connect">Как зайти</button>
+      </nav>
+
+      <div class="nav-auth">
+        <div id="nav-guest">
+          <button type="button" class="btn btn-ghost btn-small" data-nav="login">Вход</button>
+          <button type="button" class="btn btn-primary btn-small" data-nav="register">Регистрация</button>
+        </div>
+        <div id="nav-user" class="hidden nav-user-btns">
+          <span id="nav-user-label" class="brand-tagline" style="align-self: center"></span>
+          <button type="button" class="btn btn-ghost btn-small" data-nav="profile">Личный кабинет</button>
+          <button type="button" class="btn btn-ghost btn-small hidden" id="nav-admin" data-nav="admin">
+            Админ
+          </button>
+          <button type="button" class="btn btn-danger btn-small" id="btn-logout">Выход</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- Главная -->
+      <section id="view-home" class="view is-visible">
+        <div class="hero">
+          <div class="hero-inner">
+            <h1>WC-L</h1>
+            <p class="subtitle">
+              Рыцари, драконы и бескрайние миры — присоединяйся к нашему Minecraft-серверу. Строй цитадели,
+              сражайся в подземельях и пиши свою сагу.
+            </p>
+            <div class="hero-actions">
+              <button type="button" class="btn btn-primary" data-nav="connect">Играть сейчас</button>
+              <button type="button" class="btn" data-nav="register">Создать героя</button>
+              <button type="button" class="btn" data-nav="about">Узнать больше</button>
+            </div>
+            <svg class="dragon-divider" viewBox="0 0 320 24" aria-hidden="true">
+              <path
+                d="M0 12 H120 M200 12 H320 M140 12 L160 4 L180 12 L160 20 Z"
+                stroke="#c9a227"
+                stroke-width="1"
+                fill="none"
+                opacity="0.5"
+              />
+              <text x="160" y="14" text-anchor="middle" fill="#6b5a2e" font-size="8" font-family="Crimson Text,Georgia,serif">
+                ⚔ ✦ ⚔
+              </text>
+            </svg>
+          </div>
+        </div>
+
+        <div class="card-grid">
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">🛡</div>
+            <h3>Рыцарский кодекс</h3>
+            <p>Честная игра, уважение к союзникам и честные поединки — основа нашего королевства.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">🐉</div>
+            <h3>Легенды и квесты</h3>
+            <p>События, рейды и совместные постройки: каждый сезон добавляет главы в хронику WC-L.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">⚔</div>
+            <h3>Битвы и альянсы</h3>
+            <p>Формируй отряды, заключай союзы или бросай вызов соперникам в PvE и PvP-активностях.</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- О сервере -->
+      <section id="view-about" class="view">
+        <div class="panel">
+          <h2>О царстве WC-L</h2>
+          <p>
+            WC-L — это вымышленный континент, где игроки Minecraft собираются вместе, чтобы строить города,
+            исследовать глубины и отражать набеги тьмы. Мы ценим атмосферу RPG: от таверн с историями до
+            эпических осад замков.
+          </p>
+          <p>
+            Сервер ориентирован на долгую игру: экономика, кланы, ивенты и поддержка новичков. Выбери путь
+            торговца, стража границ или мага-исследователя — мир откликнется на твой выбор.
+          </p>
+          <h3>Версия и моды</h3>
+          <p>
+            <em>Прототип сайта:</em> уточните у администрации точную версию клиента и список модов/плагинов.
+            Здесь позже появятся кнопки скачивания лаунчера и инструкции.
+          </p>
+          <div class="form-actions">
+            <button type="button" class="btn" data-nav="rules">Читать правила</button>
+            <button type="button" class="btn btn-primary" data-nav="connect">IP и вход</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Правила -->
+      <section id="view-rules" class="view">
+        <div class="panel">
+          <h2>Кодекс королевства</h2>
+          <ol class="rules-list">
+            <li>Не используйте читы, дюпы и эксплойты — нарушители изгоняются из цитадели.</li>
+            <li>Оскорбления, дискриминация и токсичность караются предупреждениями и баном.</li>
+            <li>Стройте с уважением к чужим территориям; войны и рейды — по правилам сезона.</li>
+            <li>Реклама сторонних проектов без согласования с хранителями запрещена.</li>
+            <li>Администрация имеет последнее слово в спорных ситуациях.</li>
+          </ol>
+          <button type="button" class="btn btn-primary" data-nav="register">Принять и зарегистрироваться</button>
+        </div>
+      </section>
+
+      <!-- Новости -->
+      <section id="view-news" class="view">
+        <div class="panel">
+          <h2>Хроники (заглушка)</h2>
+          <p class="flash flash-info">Раздел для будущих постов: патчи, ивенты, набор в гильдии.</p>
+        </div>
+        <div class="card-grid">
+          <article class="feature-card">
+            <h3>Зима 2026 — «Лёд и пламя»</h3>
+            <p>Скоро: зимний ивент с уникальными наградами и ледяными подземельями.</p>
+            <button type="button" class="btn btn-small" disabled>Скоро</button>
+          </article>
+          <article class="feature-card">
+            <h3>Открытие врат WC-L</h3>
+            <p>Первый камень заложен: сайт и учётные записи готовы к испытаниям игроков.</p>
+          </article>
+          <article class="feature-card">
+            <h3>Набор в стражу</h3>
+            <p>Ищем модераторов и строителей спавна. Пишите через Discord (ссылка позже).</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Как зайти -->
+      <section id="view-connect" class="view">
+        <div class="panel">
+          <h2>Как войти в мир</h2>
+          <p>Установите Minecraft нужной версии, добавьте сервер в список мультиплеера и введите адрес:</p>
+          <div class="ip-box panel" style="margin-top: 1rem; justify-content: space-between">
+            <span id="server-ip">play.wc-l.example</span>
+            <button type="button" class="btn btn-small" id="btn-copy-ip">Копировать IP</button>
+          </div>
+          <p id="copy-ip-feedback" style="min-height: 1.5rem; color: var(--accent-emerald); margin-top: 0.5rem"></p>
+          <p>
+            Для доступа к личному кабинету на сайте создайте учётную запись — она может понадобиться лаунчеру и
+            бонусам.
+          </p>
+          <div class="form-actions">
+            <button type="button" class="btn btn-primary" data-nav="register">Регистрация</button>
+            <button type="button" class="btn" data-nav="login">Уже есть герой — войти</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Вход -->
+      <section id="view-login" class="view">
+        <div class="panel">
+          <h2>Вход в цитадель</h2>
+          <p>Имя героя или email и пароль.</p>
+          <div id="login-message" class="flash" role="status"></div>
+          <form id="form-login">
+            <div class="form-group">
+              <label for="login-field">Логин или email</label>
+              <input id="login-field" name="login" type="text" required minlength="3" autocomplete="username" />
+            </div>
+            <div class="form-group">
+              <label for="password-field">Пароль</label>
+              <input
+                id="password-field"
+                name="password"
+                type="password"
+                required
+                minlength="8"
+                autocomplete="current-password"
+              />
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Войти</button>
+              <button type="button" class="btn" data-nav="register">Создать аккаунт</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- Регистрация -->
+      <section id="view-register" class="view">
+        <div class="panel">
+          <h2>Создание героя</h2>
+          <p>Минимум 3 символа в имени, 8 в пароле. Имя <strong>admin</strong> зарезервировано для хранителей.</p>
+          <div id="register-message" class="flash" role="status"></div>
+          <form id="form-register">
+            <div class="form-group">
+              <label for="reg-username">Имя героя</label>
+              <input id="reg-username" name="username" type="text" required minlength="3" maxlength="50" />
+            </div>
+            <div class="form-group">
+              <label for="reg-email">Email</label>
+              <input id="reg-email" name="email" type="email" required />
+            </div>
+            <div class="form-group">
+              <label for="reg-password">Пароль</label>
+              <input id="reg-password" name="password" type="password" required minlength="8" maxlength="128" />
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Зарегистрироваться</button>
+              <button type="button" class="btn" data-nav="login">Уже есть аккаунт</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- Профиль -->
+      <section id="view-profile" class="view">
+        <div class="panel panel-profile">
+          <h2 class="profile-page-title">Личный кабинет</h2>
+          <p class="profile-page-sub">Ваш герой в хрониках WC-L</p>
+          <div id="profile-message" class="flash" role="status"></div>
+          <div id="profile-content"></div>
+          <div class="profile-footer-actions form-actions">
+            <button type="button" class="btn" data-nav="home">На главную</button>
+            <button type="button" class="btn btn-ghost" id="btn-logout-2">Выйти</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Админ -->
+      <section id="view-admin" class="view">
+        <div class="panel">
+          <h2>Зал хранителей</h2>
+          <p>Список воинов королевства. Действия уходят в API: бан, снятие бана, выдача и отзыв прав админа.</p>
+          <div id="admin-message" class="flash" role="status"></div>
+          <div class="admin-toolbar">
+            <span class="admin-toolbar-label">Кого показать:</span>
+            <label class="admin-filter"><input type="radio" name="admin-filter" value="all" checked /> Всех</label>
+            <label class="admin-filter"><input type="radio" name="admin-filter" value="admins" /> Только хранителей</label>
+            <label class="admin-filter"><input type="radio" name="admin-filter" value="players" /> Только игроков</label>
+            <button type="button" class="btn btn-small btn-primary" id="btn-admin-refresh">Обновить список</button>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table" id="admin-users">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Имя</th>
+                  <th>Email</th>
+                  <th>Админ</th>
+                  <th>Бан</th>
+                  <th>Действия</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <button type="button" class="btn" data-nav="profile" style="margin-top: 1rem">Назад в кабинет</button>
+        </div>
+      </section>
+    </main>
+
+    <div class="site-footer-band">
+      <div class="footer-gold-line" aria-hidden="true"></div>
+      <footer class="site-footer">
+        <p><strong>WC-L</strong> — Minecraft сервер. Прототип интерфейса для согласования стиля.</p>
+        <p class="footer-api-row">
+          <span id="wc-l-api-status" class="api-status api-status-unknown" title="Проверка API">●</span>
+          <span id="wc-l-api-status-text">API…</span>
+          ·
+          API:
+          <a id="wc-l-link-docs" href="/docs">/docs</a>
+          ·
+          <a id="wc-l-link-health" href="/api/v1/health">health</a>
+          <span id="wc-l-live-hint" class="footer-live-hint">
+            Через Live Server: бэкенд должен быть запущен на порту <strong>8000</strong>
+            (<code>uvicorn app.main:app --reload</code>).
+          </span>
+        </p>
+      </footer>
+    </div>
+
+    <script src="static/js/app.js?v=4"></script>
+  </body>
+</html>

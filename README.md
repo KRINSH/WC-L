@@ -72,14 +72,33 @@ Then open:
 - `http://127.0.0.1:8000/docs`
 - Auth routes are available in the main Swagger docs at `http://127.0.0.1:8000/docs`
 
+The backend now serves the frontend from `frontend/`:
+
+- `/` returns `frontend/index.html`
+- `/static/*` serves files from `frontend/static/*`
+
 ## Environment config
 
 - Copy `.env.example` to `.env`
-- Fill in real values for `SECRET_KEY` and any environment-specific settings
+- Set a long random `SECRET_KEY` (at least 32 chars)
+- Use `DEBUG=true` only for local development; keep `DEBUG=false` in production
+- If frontend runs on another origin (Live Server/Vite), set `CORS_ALLOW_ORIGINS` accordingly
 - Keep `.env` local (it is ignored by `.gitignore`)
 
 ```powershell
 Copy-Item .env.example .env
+```
+
+Generate a strong secret key:
+
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+Example CORS list for local frontend dev:
+
+```dotenv
+CORS_ALLOW_ORIGINS=["http://127.0.0.1:5500","http://localhost:5500","http://127.0.0.1:5501","http://localhost:5501","http://127.0.0.1:5173","http://localhost:5173","http://127.0.0.1:3000","http://localhost:3000"]
 ```
 
 ## Database migrations
