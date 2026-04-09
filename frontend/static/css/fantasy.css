@@ -2004,3 +2004,8 @@ label.admin-filter input {
   margin-bottom: 0.75rem;
   min-height: 0;
 }
+
+#profile-modal-password-msg {
+  margin-bottom: 0.75rem;
+  min-height: 0;
+}

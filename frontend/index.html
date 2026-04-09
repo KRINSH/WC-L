@@ -361,30 +361,57 @@
         </form>
       </div>
       <div
-        id="profile-modal-password-hint"
+        id="profile-modal-change-password"
         class="profile-modal hidden"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="profile-modal-password-hint-title"
+        aria-labelledby="profile-modal-change-password-title"
       >
-        <h3 id="profile-modal-password-hint-title" class="profile-modal-title">Изменить пароль</h3>
-        <p class="profile-modal-hint">
-          Чтобы изменить пароль, нажмите «Забыл пароль» — откроется подсказка, как восстановить доступ.
-        </p>
-        <div class="form-actions profile-modal-actions">
-          <button type="button" class="btn" id="btn-profile-password-hint-cancel">Закрыть</button>
-          <button type="button" class="btn btn-primary" id="btn-profile-password-hint-to-forgot">Забыл пароль</button>
-        </div>
-      </div>
-      <div id="profile-modal-forgot" class="profile-modal hidden" role="dialog" aria-modal="true">
-        <h3 class="profile-modal-title">Забыли пароль?</h3>
-        <p class="profile-modal-hint">
-          Сброс пароля по письму на email в этом прототипе не подключён. Обратитесь к администрации сервера или
-          загляните в раздел «Как зайти», если там указаны контакты поддержки.
-        </p>
-        <div class="form-actions">
-          <button type="button" class="btn btn-primary" id="btn-profile-forgot-close">Понятно</button>
-        </div>
+        <h3 id="profile-modal-change-password-title" class="profile-modal-title">Изменить пароль</h3>
+        <p class="profile-modal-hint">Введите текущий пароль, затем новый пароль дважды.</p>
+        <div id="profile-modal-password-msg" class="flash" role="status"></div>
+        <form id="form-profile-change-password">
+          <div class="form-group">
+            <label for="input-profile-password-current">Старый пароль</label>
+            <input
+              id="input-profile-password-current"
+              name="current_password"
+              type="password"
+              required
+              minlength="8"
+              maxlength="128"
+              autocomplete="current-password"
+            />
+          </div>
+          <div class="form-group">
+            <label for="input-profile-password-new">Новый пароль</label>
+            <input
+              id="input-profile-password-new"
+              name="new_password"
+              type="password"
+              required
+              minlength="8"
+              maxlength="128"
+              autocomplete="new-password"
+            />
+          </div>
+          <div class="form-group">
+            <label for="input-profile-password-new-2">Повторите новый пароль</label>
+            <input
+              id="input-profile-password-new-2"
+              name="new_password_confirm"
+              type="password"
+              required
+              minlength="8"
+              maxlength="128"
+              autocomplete="new-password"
+            />
+          </div>
+          <div class="form-actions profile-modal-actions">
+            <button type="button" class="btn" id="btn-profile-password-cancel">Отмена</button>
+            <button type="submit" class="btn btn-primary">Сменить пароль</button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -397,6 +424,6 @@
       aria-hidden="true"
     />
 
-    <script src="static/js/app.js?v=49" defer></script>
+    <script src="static/js/app.js?v=51" defer></script>
   </body>
 </html>
