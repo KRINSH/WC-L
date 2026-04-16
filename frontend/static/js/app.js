@@ -60,7 +60,7 @@
     return "";
   }
 
-  /** Путь относительно каталога static (например img/coin-spin.gif) — и с :8000, и с Live Server. */
+  /** Путь относительно каталога static (например img/avatar-1.gif) — и с :8000, и с Live Server. */
   function localStaticUrl(pathWithinStatic) {
     const raw = String(pathWithinStatic || "").replace(/^\/+/, "");
     if (!raw) return "";
@@ -78,42 +78,6 @@
       return `/static/${p}`;
     }
     return `static/${p}`;
-  }
-
-  (function patchFooterLinks() {
-    const origin = apiOrigin();
-    const docs = document.getElementById("wc-l-link-docs");
-    const health = document.getElementById("wc-l-link-health");
-    const hint = document.getElementById("wc-l-live-hint");
-    if (docs) docs.href = origin ? `${origin}/docs` : "/docs";
-    if (health) health.href = origin ? `${origin}/api/v1/health` : "/api/v1/health";
-    if (hint && origin) hint.style.display = "block";
-  })();
-
-  function healthUrl() {
-    if (API.startsWith("http://") || API.startsWith("https://")) {
-      return new URL(API).origin + "/api/v1/health";
-    }
-    return "/api/v1/health";
-  }
-
-  async function checkApiStatus() {
-    if (document.visibilityState !== "visible") return;
-    const dot = document.getElementById("wc-l-api-status");
-    const txt = document.getElementById("wc-l-api-status-text");
-    if (!dot || !txt) return;
-    dot.className = "api-status api-status-unknown";
-    txt.textContent = "Проверка API…";
-    try {
-      const res = await fetch(healthUrl(), { method: "GET", cache: "no-store" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.status !== "ok") throw new Error("bad");
-      dot.className = "api-status api-status-ok";
-      txt.textContent = "API в сети";
-    } catch {
-      dot.className = "api-status api-status-fail";
-      txt.textContent = "API недоступно (запустите uvicorn :8000)";
-    }
   }
 
   const views = {
@@ -314,7 +278,6 @@
         msg.classList.add("flash-success");
         msg.textContent = "Добро пожаловать в цитадель!";
         showView("profile");
-        checkApiStatus();
       } catch (err) {
         msg.classList.add("flash-error");
         msg.textContent = err.message;
@@ -352,7 +315,6 @@
         msg.textContent = "Учётная запись создана. Войдите.";
         registerForm.reset();
         setTimeout(() => showView("login"), 800);
-        checkApiStatus();
       } catch (err) {
         msg.classList.add("flash-error");
         msg.textContent = err.message;
@@ -369,28 +331,28 @@
   const MC_HEAD_MAIN = 128;
   const MC_HEAD_MENU = 32;
   const MC_AVATAR_VARIANTS = Object.freeze([
-    { id: "coin_spin", headName: null, label: "Монета", asset: "img/coin-spin.gif" },
+    { id: "coin_spin", headName: null, label: "Монета", asset: "img/avatar-1.gif" },
     {
       id: "lep_pair",
       headName: null,
       label: "3lEP",
-      asset: "img/3lEP.gif",
+      asset: "img/avatar-2.gif",
     },
-    { id: "pack_4p8p", headName: null, label: "4P8P", asset: "img/4P8P-slow.gif?cb=3", combined: true },
+    { id: "pack_4p8p", headName: null, label: "4P8P", asset: "img/avatar-3.gif", combined: true },
     {
       id: "heart_pair",
       headName: null,
       label: "Сердце",
-      asset: "img/mxjfiles-heart-22297-slow.gif?cb=2",
-      backgroundAsset: "img/WBVi.gif",
+      asset: "img/avatar-4.gif",
+      backgroundAsset: "img/avatar-bg-1.gif",
     },
-    { id: "cat_combo", headName: null, label: "Кот", asset: "img/u_iglgsndacj-cat-6147.gif", combined: true },
+    { id: "cat_combo", headName: null, label: "Кот", asset: "img/avatar-5.gif", combined: true },
     {
       id: "diamond_pair",
       headName: null,
       label: "Алмаз",
-      asset: "img/pikura-diamond-20755.gif",
-      backgroundAsset: "img/HDso.gif",
+      asset: "img/avatar-6.gif",
+      backgroundAsset: "img/avatar-bg-2.gif",
     },
     { id: "chicken", headName: "MHF_Chicken", label: "Курица" },
     { id: "pig", headName: "MHF_Pig", label: "Свинья" },
@@ -403,7 +365,7 @@
   /** Декоративная рамка поверх аватарки (PNG поверх круга). */
   const PROFILE_FRAME_VARIANTS = Object.freeze([
     { id: "none", label: "Без рамки", asset: null },
-    { id: "pngwing_1", label: "Рамка 1", asset: "img/pngwing.com (1).png" },
+    { id: "pngwing_1", label: "Рамка 1", asset: "img/avatar-frame-1.png" },
   ]);
   const DEFAULT_PROFILE_FRAME = "none";
   const PROFILE_FRAME_STORAGE_KEY = "wc_l_profile_frame_by_user";
@@ -1435,7 +1397,7 @@
 
     /** Верхний край полосы футера — монеты не ниже (как «рамка» снизу, симметрично шапке) */
     function footerTopDocY() {
-      const el = document.querySelector(".site-footer-band");
+      const el = document.querySelector(".site-footer");
       if (!el) return document.documentElement.scrollHeight;
       return el.getBoundingClientRect().top + window.scrollY;
     }
@@ -1462,12 +1424,7 @@
     const ORB_IDLE_DRIFT = 0.024;
     const WALL_BOUNCE = 0.88;
     const COIN_RESTITUTION = 0.82;
-    const STAR_GIF_NAMES = [
-      "звизда 1.gif",
-      "звезда 2_export_Анимация.gif",
-      "звезда 3.gif",
-      "звезда 4.gif",
-    ];
+    const STAR_GIF_NAMES = ["spark-1.gif", "spark-2.gif", "spark-3.gif", "spark-4.gif"];
     function starGifUrl(index) {
       return "static/img/" + encodeURIComponent(STAR_GIF_NAMES[index]);
     }
@@ -1710,10 +1667,4 @@
 
   updateAuthNav();
   showView(readStoredView());
-  checkApiStatus();
-  /* Реже опрос health — меньше фоновых запросов при открытой вкладке. */
-  setInterval(checkApiStatus, 120000);
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") checkApiStatus();
-  });
 })();

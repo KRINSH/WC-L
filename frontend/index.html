@@ -21,9 +21,10 @@
         rel="stylesheet"
       />
     </noscript>
-    <link rel="stylesheet" href="static/css/fantasy.css?v=99" />
+    <link rel="stylesheet" href="static/css/fantasy.css?v=105" />
   </head>
   <body data-view="home">
+    <div class="site-page">
     <header class="site-header">
       <button type="button" class="brand" data-go-home aria-label="На главную">
         <img
@@ -58,7 +59,7 @@
       </div>
     </header>
 
-    <main>
+    <main class="site-main">
       <!-- Главная -->
       <section id="view-home" class="view is-visible">
         <div class="hero">
@@ -307,24 +308,9 @@
       </section>
     </main>
 
-    <div class="site-footer-band">
-      <div class="footer-gold-line" aria-hidden="true"></div>
-      <footer class="site-footer">
-        <p><strong>WC-L</strong> — Minecraft сервер. Прототип интерфейса для согласования стиля.</p>
-        <p class="footer-api-row">
-          <span id="wc-l-api-status" class="api-status api-status-unknown" title="Проверка API">●</span>
-          <span id="wc-l-api-status-text">API…</span>
-          ·
-          API:
-          <a id="wc-l-link-docs" href="/docs">/docs</a>
-          ·
-          <a id="wc-l-link-health" href="/api/v1/health">health</a>
-          <span id="wc-l-live-hint" class="footer-live-hint">
-            Через Live Server: бэкенд должен быть запущен на порту <strong>8000</strong>
-            (<code>uvicorn app.main:app --reload</code>).
-          </span>
-        </p>
-      </footer>
+    <footer class="site-footer" aria-hidden="true">
+      <div class="site-footer-plank"></div>
+    </footer>
     </div>
 
     <div id="profile-modal-overlay" class="profile-modal-overlay hidden" aria-hidden="true">
@@ -424,6 +410,6 @@
       aria-hidden="true"
     />
 
-    <script src="static/js/app.js?v=51" defer></script>
+    <script src="static/js/app.js?v=54" defer></script>
   </body>
 </html>

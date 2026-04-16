@@ -74,6 +74,9 @@
 }
 
 :root {
+  /* Единственная высота полосы хедера и футера (px); оба блока совпадают пиксель в пиксель */
+  --chrome-bar-height: 72px;
+  --chrome-bar-padding-x: 16px;
   --bg-deep: #0d0a12;
   --bg-stone: #1a1520;
   --bg-card: rgba(28, 22, 38, 0.92);
@@ -120,6 +123,20 @@ h6 {
   50% {
     box-shadow:
       0 2px 18px rgba(0, 0, 0, 0.5),
+      0 0 18px rgba(201, 162, 39, 0.12);
+  }
+}
+
+@keyframes fx-footer-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 -2px 14px rgba(0, 0, 0, 0.45),
+      0 0 0 rgba(201, 162, 39, 0);
+  }
+  50% {
+    box-shadow:
+      0 -2px 18px rgba(0, 0, 0, 0.5),
       0 0 18px rgba(201, 162, 39, 0.12);
   }
 }
@@ -208,18 +225,6 @@ h6 {
   }
 }
 
-@keyframes fx-footer-ember {
-  0%,
-  100% {
-    text-shadow: 0 0 8px rgba(201, 162, 39, 0.35);
-  }
-  50% {
-    text-shadow:
-      0 0 16px rgba(201, 162, 39, 0.55),
-      0 0 28px rgba(201, 162, 39, 0.25);
-  }
-}
-
 @keyframes fx-ip-glow {
   0%,
   100% {
@@ -260,11 +265,14 @@ h6 {
 html {
   scroll-behavior: auto;
   background-color: var(--bg-deep);
+  height: 100%;
 }
 
 body {
   margin: 0;
-  min-height: unset;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   font-family: var(--font-body);
   font-weight: 400;
   font-size: 1.2rem;
@@ -273,7 +281,7 @@ body {
   background-color: var(--bg-deep);
   background-image:
     linear-gradient(180deg, rgba(8, 6, 14, 0.72) 0%, rgba(10, 8, 18, 0.58) 45%, rgba(6, 5, 12, 0.68) 100%),
-    url("../img/stock-vector-dungeon-pixel-art-game-level-vector-with-illuminated-stone-walls-and-floor-gaming-background-for-2689681083-2.jpeg"),
+    url("../img/bg-dungeon.jpeg"),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cpath fill='%23ffffff' fill-opacity='0.02' d='M0 0h60v60H0zm60 60h60v60H60z'/%3E%3C/svg%3E");
   background-size:
     100% 100%,
@@ -304,35 +312,45 @@ body::before {
   animation: fx-ambient 14s ease-in-out infinite;
 }
 
-/* Контент выше слоя монет; линия перед футером — ниже монет (z-index см. ниже) */
-body > main {
+/*
+ * Каркас страницы: колонка flex, минимум высота экрана.
+ * main растягивается (flex:1), хедер/футер — фиксированной полосы по --chrome-bar-height.
+ */
+.site-page {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
   z-index: 3;
 }
 
-/* Нижняя полоса: плотный серый фон — текст и линия не лежат на фото подземелья */
-body > .site-footer-band {
+.site-footer {
+  flex-shrink: 0;
   position: relative;
   z-index: 3;
-  margin-top: calc(9.5rem - 0.28rem + 3px);
-  background-color: var(--bg-deep);
-  background-image: linear-gradient(
-    180deg,
-    rgba(22, 18, 30, 0.99) 0%,
-    rgba(16, 13, 22, 0.995) 40%,
-    #0d0a12 100%
-  );
-  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.55);
-}
-
-/* Золотая линия — граница между зоной картинки (выше) и серым низом */
-.footer-gold-line {
   margin: 0;
-  height: 1px;
-  background: var(--border-gold-dim);
-  position: relative;
-  z-index: 1;
-  pointer-events: none;
+  padding: 0;
+  border: none;
+  display: block;
+  height: var(--chrome-bar-height);
+  min-height: var(--chrome-bar-height);
+  max-height: var(--chrome-bar-height);
+  box-sizing: border-box;
+}
+
+.site-footer-plank {
+  height: var(--chrome-bar-height);
+  min-height: var(--chrome-bar-height);
+  max-height: var(--chrome-bar-height);
+  padding: 0 var(--chrome-bar-padding-x);
+  box-sizing: border-box;
+  border-top: 1px solid var(--border-gold-dim);
+  background: linear-gradient(0deg, rgba(13, 10, 18, 0.98), rgba(20, 16, 28, 0.95));
+  overflow: hidden;
+  animation: fx-footer-glow 6s ease-in-out infinite;
 }
 
 /* ——— Фон: монеты (высота = блок body по контенту; без лишней прокрутки) ——— */
@@ -400,7 +418,7 @@ body > .site-footer-band {
   overflow: hidden;
   opacity: 0.35;
   background-color: transparent;
-  background-image: url("../img/%D0%95%D0%92%D0%A0%D0%95%D0%99%D0%A1%D0%9A%D0%90%D0%AF%20%D0%9C%D0%9E%D0%9D%D0%95%D0%A2%D0%90_export_%D0%90%D0%BD%D0%B8%D0%BC%D0%B0%D1%86%D0%B8%D1%8F%20%281%29.gif");
+  background-image: url("../img/avatar-fx-1.gif");
   background-repeat: no-repeat;
   background-position: center center;
   background-size: contain;
@@ -417,18 +435,26 @@ a:hover {
   text-shadow: 0 0 12px var(--fx-gold-dim);
 }
 
-/* ——— Шапка ——— */
+/* ——— Шапка — та же высота и горизонтальные поля, что у .site-footer-plank ——— */
 .site-header {
   position: sticky;
   top: 0;
   z-index: 100;
-  overflow: visible;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.4rem 0.75rem;
-  padding: 0.4rem 1rem;
+  flex-wrap: nowrap;
+  gap: 8px 10px;
+  height: var(--chrome-bar-height);
+  min-height: var(--chrome-bar-height);
+  max-height: var(--chrome-bar-height);
+  padding: 0 var(--chrome-bar-padding-x);
+  box-sizing: border-box;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
   background: linear-gradient(180deg, rgba(13, 10, 18, 0.98), rgba(20, 16, 28, 0.95));
   border-bottom: 1px solid var(--border-gold-dim);
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.45);
@@ -448,6 +474,7 @@ a:hover {
   overflow: visible;
   position: relative;
   z-index: 1;
+  flex-shrink: 0;
 }
 
 /* В потоке 56×56; визуально ×2, якорь справа — высота хедера не растёт. */
@@ -474,9 +501,12 @@ a:hover {
 
 .main-nav {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 0.2rem 0.35rem;
+  flex: 1 1 auto;
+  justify-content: center;
+  gap: 4px 6px;
+  min-width: 0;
 }
 
 .main-nav button,
@@ -516,16 +546,17 @@ a:hover {
 
 .nav-auth {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  flex-wrap: nowrap;
+  gap: 6px;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .nav-user-btns,
 #nav-guest {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  flex-wrap: nowrap;
+  gap: 6px;
   align-items: center;
 }
 
@@ -599,10 +630,15 @@ a:hover {
 }
 
 /* ——— Макет страниц ——— */
-main {
+.site-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  z-index: 3;
+  width: 100%;
   max-width: 1100px;
   margin: 0 auto;
-  padding: 2rem 1.25rem 4rem;
+  padding: 2rem 1.25rem 3rem;
 }
 
 .view {
@@ -684,6 +720,7 @@ main {
 
   body::before,
   .site-header,
+  .site-footer-plank,
   .brand-logo,
   .main-nav button.is-active,
   .btn-primary::before,
@@ -691,7 +728,6 @@ main {
   .hero h1,
   .dragon-divider,
   .feature-icon,
-  .site-footer strong,
   .ip-box,
   .profile-avatar-frame {
     animation: none !important;
@@ -1031,41 +1067,6 @@ label.admin-filter input {
   vertical-align: middle;
 }
 
-.footer-api-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem 0.5rem;
-}
-
-.footer-live-hint {
-  display: none;
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
-  width: 100%;
-  text-align: center;
-}
-
-.api-status {
-  font-size: 1.1rem;
-  line-height: 1;
-  cursor: default;
-}
-
-.api-status-ok {
-  color: #5cb88a;
-  text-shadow: 0 0 8px rgba(92, 184, 138, 0.5);
-}
-
-.api-status-fail {
-  color: #c45c6a;
-}
-
-.api-status-unknown {
-  color: var(--text-muted);
-}
-
 .btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
@@ -1088,30 +1089,6 @@ label.admin-filter input {
 .badge-no {
   background: rgba(40, 40, 50, 0.5);
   color: var(--text-muted);
-}
-
-/* ——— Подвал ——— */
-.site-footer {
-  text-align: center;
-  margin-top: 0;
-  padding: 2rem 1rem;
-  color: var(--text-muted);
-  font-size: 0.95rem;
-}
-
-.site-footer > p:first-child {
-  margin: 0 0 1rem;
-}
-
-.site-footer > p.footer-api-row {
-  margin: 0;
-}
-
-.site-footer strong {
-  color: var(--border-gold);
-  font-family: var(--font-body);
-  letter-spacing: 0.15em;
-  animation: fx-footer-ember 5s ease-in-out infinite;
 }
 
 .rules-list {
@@ -1246,10 +1223,10 @@ label.admin-filter input {
   display: none;
 }
 
-/* Монета: анимированный фон за coin-spin.gif + отступ, чтобы монетка не прилипала к ободку */
+/* Монета: фон avatar-bg-3 за avatar-1 + отступ к ободку */
 .profile-avatar-frame[data-avatar-variant="coin_spin"] .profile-avatar-inner {
   background-color: #0a1628;
-  background-image: url("../img/фон монеты.gif");
+  background-image: url("../img/avatar-bg-3.gif");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1268,7 +1245,7 @@ label.admin-filter input {
 
 .profile-avatar-tile[data-mc-variant="coin_spin"] {
   background-color: #0c1a2e;
-  background-image: url("../img/фон монеты.gif");
+  background-image: url("../img/avatar-bg-3.gif");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1328,10 +1305,10 @@ label.admin-filter input {
   background: #0d0a12;
 }
 
-/* Пара сердце (mxjfiles-heart-22297-slow: чуть медленнее оригинала, без длинных пауз) + фон WBVi */
+/* Пара сердце (avatar-4) + фон avatar-bg-1 */
 .profile-avatar-frame[data-avatar-variant="heart_pair"] .profile-avatar-inner {
   background-color: #0a1628;
-  background-image: url("../img/WBVi.gif");
+  background-image: url("../img/avatar-bg-1.gif");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1341,13 +1318,13 @@ label.admin-filter input {
 
 .profile-avatar-tile[data-mc-variant="heart_pair"] {
   background-color: #0a1628;
-  background-image: url("../img/WBVi.gif");
+  background-image: url("../img/avatar-bg-1.gif");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 }
 
-/* u_iglgsndacj-cat — один GIF, крупнее */
+/* Кот (avatar-5) — один GIF, крупнее */
 .profile-avatar-frame[data-avatar-variant="cat_combo"] .profile-avatar-inner {
   background: #0d0a12;
   padding: 4%;
@@ -1358,10 +1335,10 @@ label.admin-filter input {
   background: #0d0a12;
 }
 
-/* Пара pikura-diamond + фон HDso, алмаз крупнее */
+/* Пара алмаз (avatar-6) + фон avatar-bg-2 */
 .profile-avatar-frame[data-avatar-variant="diamond_pair"] .profile-avatar-inner {
   background-color: #0a1628;
-  background-image: url("../img/HDso.gif");
+  background-image: url("../img/avatar-bg-2.gif");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1371,7 +1348,7 @@ label.admin-filter input {
 
 .profile-avatar-tile[data-mc-variant="diamond_pair"] {
   background-color: #0a1628;
-  background-image: url("../img/HDso.gif");
+  background-image: url("../img/avatar-bg-2.gif");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1886,17 +1863,8 @@ label.admin-filter input {
 }
 
 @media (max-width: 720px) {
-  .site-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .main-nav {
-    justify-content: center;
-  }
-
-  .nav-auth {
-    justify-content: center;
+  :root {
+    --chrome-bar-padding-x: 12px;
   }
 }
 
