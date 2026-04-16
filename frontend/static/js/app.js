@@ -35,9 +35,13 @@
     "connect",
     "login",
     "forgot-password",
+    "faq",
+    "cooperation",
+    "donations",
     "register",
     "profile",
     "admin",
+    "processing",
   ]);
 
   function persistCurrentView(name) {
@@ -89,9 +93,13 @@
     connect: document.getElementById("view-connect"),
     login: document.getElementById("view-login"),
     "forgot-password": document.getElementById("view-forgot-password"),
+    faq: document.getElementById("view-faq"),
+    cooperation: document.getElementById("view-cooperation"),
+    donations: document.getElementById("view-donations"),
     register: document.getElementById("view-register"),
     profile: document.getElementById("view-profile"),
     admin: document.getElementById("view-admin"),
+    processing: document.getElementById("view-processing"),
   };
 
   const navButtons = document.querySelectorAll("[data-nav]");
@@ -219,6 +227,34 @@
     form?.reset();
   }
 
+  function resetCooperationUi() {
+    const msg = document.getElementById("cooperation-message");
+    const form = document.getElementById("form-cooperation");
+    if (msg) {
+      msg.textContent = "";
+      msg.className = "flash";
+    }
+    form?.reset();
+  }
+
+  async function loadProcessingStub() {
+    const token = getToken();
+    const host = document.getElementById("view-processing");
+    if (!host) return;
+    if (!token) {
+      showView("login");
+      return;
+    }
+    try {
+      const me = await fetchAuthMeCached();
+      if (!me || !me.is_admin) {
+        showView("profile");
+      }
+    } catch (_) {
+      showView("login");
+    }
+  }
+
   function showView(name) {
     persistCurrentView(name);
     document.body.setAttribute("data-view", name);
@@ -233,6 +269,8 @@
     if (name === "profile") loadProfile();
     if (name === "admin") loadAdminUsers();
     if (name === "forgot-password") resetForgotPasswordUi();
+    if (name === "cooperation") resetCooperationUi();
+    if (name === "processing") loadProcessingStub();
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     requestAnimationFrame(() => document.dispatchEvent(new CustomEvent("wc-l-layout-refresh")));
   }
@@ -359,6 +397,28 @@
       }
     });
   }
+
+  document.getElementById("form-cooperation")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const msg = document.getElementById("cooperation-message");
+    const fd = new FormData(form);
+    const contact = String(fd.get("contact") || "").trim();
+    const skills = String(fd.get("skills") || "").trim();
+    if (contact.length < 3 || skills.length < 10) {
+      if (msg) {
+        msg.className = "flash flash-error";
+        msg.textContent = "Заполните все поля заявки чуть подробнее.";
+      }
+      return;
+    }
+    if (msg) {
+      msg.className = "flash flash-success";
+      msg.textContent = "Заявка принята. После подключения системы обработки она будет доступна администраторам.";
+    }
+    // TODO(backend): отправлять заявку на сотрудничество админам и выводить её во вкладке обработки.
+    form.reset();
+  });
 
   /** Головы mc-heads.net; в меню только превью, подписи — в title (подсказка при наведении). */
   const MC_HEAD_MAIN = 128;
@@ -898,7 +958,9 @@
       box.dataset.profileUserId = String(me.id);
       box.dataset.profileUsername = me.username;
       const guardiansBtn = document.getElementById("btn-profile-guardians");
+      const processingBtn = document.getElementById("btn-profile-processing");
       if (guardiansBtn) guardiansBtn.classList.toggle("hidden", !me.is_admin);
+      if (processingBtn) processingBtn.classList.toggle("hidden", !me.is_admin);
       bindProfileAvatarImage(box, me.username, variantId);
       bindMcAvatarMenuTiles(box);
       applyProfileFrameOverlay(box, me.id);
