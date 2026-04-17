@@ -1,7 +1,8 @@
 /**
  * WC-L — клиент API и навигация по разделам (прототип без фреймворка).
  *
- * Live Server (порт 5500/5501): запросы идут на тот же host, порт 8000 (uvicorn).
+ * Live Server (любой порт, в т.ч. 8000 в .vscode): API на тот же host, порт 8000 (uvicorn).
+ * Не держите Live Server и uvicorn на одном и том же порту — задайте window.WC_L_API_BASE.
  * Свой API: перед app.js задайте window.WC_L_API_BASE = "http://127.0.0.1:9000/api/v1";
  */
 (function () {
@@ -15,7 +16,7 @@
     const h = location.hostname;
     const isLocal = h === "localhost" || h === "127.0.0.1" || h === "[::1]";
     const port = location.port;
-    // Страница с uvicorn :8000 — API относительным путём; иначе Live Server/Vite на любом порту → бэкенд :8000.
+    // Тот же хост :8000 с uvicorn — API относительным путём; иной локальный порт (Live/Vite) → бэкенд :8000.
     if (isLocal && port === "8000") {
       return "/api/v1";
     }
@@ -33,9 +34,14 @@
     "news",
     "connect",
     "login",
+    "forgot-password",
+    "faq",
+    "cooperation",
+    "donations",
     "register",
     "profile",
     "admin",
+    "processing",
   ]);
 
   function persistCurrentView(name) {
@@ -59,7 +65,7 @@
     return "";
   }
 
-  /** Путь относительно каталога static (например img/coin-spin.gif) — и с :8000, и с Live Server. */
+  /** Путь относительно каталога static (например img/avatar-1.gif) — и с :8000, и с Live Server. */
   function localStaticUrl(pathWithinStatic) {
     const raw = String(pathWithinStatic || "").replace(/^\/+/, "");
     if (!raw) return "";
@@ -79,42 +85,6 @@
     return `static/${p}`;
   }
 
-  (function patchFooterLinks() {
-    const origin = apiOrigin();
-    const docs = document.getElementById("wc-l-link-docs");
-    const health = document.getElementById("wc-l-link-health");
-    const hint = document.getElementById("wc-l-live-hint");
-    if (docs) docs.href = origin ? `${origin}/docs` : "/docs";
-    if (health) health.href = origin ? `${origin}/api/v1/health` : "/api/v1/health";
-    if (hint && origin) hint.style.display = "block";
-  })();
-
-  function healthUrl() {
-    if (API.startsWith("http://") || API.startsWith("https://")) {
-      return new URL(API).origin + "/api/v1/health";
-    }
-    return "/api/v1/health";
-  }
-
-  async function checkApiStatus() {
-    if (document.visibilityState !== "visible") return;
-    const dot = document.getElementById("wc-l-api-status");
-    const txt = document.getElementById("wc-l-api-status-text");
-    if (!dot || !txt) return;
-    dot.className = "api-status api-status-unknown";
-    txt.textContent = "Проверка API…";
-    try {
-      const res = await fetch(healthUrl(), { method: "GET", cache: "no-store" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.status !== "ok") throw new Error("bad");
-      dot.className = "api-status api-status-ok";
-      txt.textContent = "API в сети";
-    } catch {
-      dot.className = "api-status api-status-fail";
-      txt.textContent = "API недоступно (запустите uvicorn :8000)";
-    }
-  }
-
   const views = {
     home: document.getElementById("view-home"),
     about: document.getElementById("view-about"),
@@ -122,9 +92,14 @@
     news: document.getElementById("view-news"),
     connect: document.getElementById("view-connect"),
     login: document.getElementById("view-login"),
+    "forgot-password": document.getElementById("view-forgot-password"),
+    faq: document.getElementById("view-faq"),
+    cooperation: document.getElementById("view-cooperation"),
+    donations: document.getElementById("view-donations"),
     register: document.getElementById("view-register"),
     profile: document.getElementById("view-profile"),
     admin: document.getElementById("view-admin"),
+    processing: document.getElementById("view-processing"),
   };
 
   const navButtons = document.querySelectorAll("[data-nav]");
@@ -150,11 +125,14 @@
   }
 
   function apiUnreachableMessage() {
+    if (typeof location !== "undefined" && location.protocol === "file:") {
+      return "Откройте сайт по адресу http://127.0.0.1:8000/ (не двойной клик по index.html). Сначала в терминале: uvicorn app.main:app --reload";
+    }
     if (API.startsWith("http://") || API.startsWith("https://")) {
       const u = new URL(API);
-      return `Не удаётся связаться с API (${u.host}). Запустите бэкенд: uvicorn на порту 8000 и откройте страницу с того же компьютера.`;
+      return `Сервер не отвечает (${u.host}). В корне проекта: uvicorn app.main:app --reload — затем страница http://127.0.0.1:8000/ Если API на другом порту — задайте window.WC_L_API_BASE до загрузки app.js.`;
     }
-    return "Не удаётся связаться с API. Запустите сервер (uvicorn) и откройте сайт с того же хоста.";
+    return "Сервер не отвечает. Запустите: uvicorn app.main:app --reload и откройте http://127.0.0.1:8000/";
   }
 
   async function apiFetch(path, options = {}) {
@@ -222,6 +200,246 @@
     return _authMePending;
   }
 
+  /** Часть локальной части email видна, остальное — звёздочки (до @). */
+  function maskEmailHalf(email) {
+    const s = String(email || "").trim();
+    if (!s) return "•••@•••";
+    const at = s.indexOf("@");
+    if (at < 1) {
+      const half = Math.ceil(s.length / 2);
+      return s.slice(0, half) + "*".repeat(Math.max(2, s.length - half));
+    }
+    const local = s.slice(0, at);
+    const domain = s.slice(at + 1);
+    const vis = Math.max(1, Math.ceil(local.length / 2));
+    const maskedLocal = local.slice(0, vis) + "*".repeat(Math.max(2, local.length - vis));
+    return `${maskedLocal}@${domain}`;
+  }
+
+  function resetForgotPasswordUi() {
+    const stepForm = document.getElementById("forgot-password-step-form");
+    const stepSent = document.getElementById("forgot-password-step-sent");
+    const msg = document.getElementById("forgot-password-message");
+    const form = document.getElementById("form-forgot-password");
+    if (stepForm) stepForm.classList.remove("hidden");
+    if (stepSent) stepSent.classList.add("hidden");
+    if (msg) {
+      msg.textContent = "";
+      msg.className = "flash";
+    }
+    form?.reset();
+  }
+
+  function resetCooperationUi() {
+    const msg = document.getElementById("cooperation-message");
+    const form = document.getElementById("form-cooperation");
+    if (msg) {
+      msg.textContent = "";
+      msg.className = "flash";
+    }
+    form?.reset();
+  }
+
+  const staffState = {
+    cache: { admin: null, processing: null },
+    selectedId: { admin: null, processing: null },
+    myId: null,
+  };
+
+  const STAFF_SELECTORS = {
+    admin: {
+      list: "admin-user-list",
+      detail: "admin-user-detail",
+      search: "admin-user-search",
+      msg: "admin-message",
+    },
+    processing: {
+      list: "processing-user-list",
+      detail: "processing-user-detail",
+      search: "processing-user-search",
+      msg: "processing-message",
+    },
+  };
+
+  function getStaffEls(mode) {
+    const s = STAFF_SELECTORS[mode];
+    if (!s) return null;
+    return {
+      list: document.getElementById(s.list),
+      detail: document.getElementById(s.detail),
+      search: document.getElementById(s.search),
+      msg: document.getElementById(s.msg),
+    };
+  }
+
+  function userMatchesStaffQuery(u, q) {
+    const s = (q || "").trim().toLowerCase();
+    if (!s) return true;
+    return (
+      (u.username && u.username.toLowerCase().includes(s)) ||
+      (u.email && String(u.email).toLowerCase().includes(s)) ||
+      String(u.id).includes(s)
+    );
+  }
+
+  function syncStaffListAndDetail(mode) {
+    const users = staffState.cache[mode];
+    const els = getStaffEls(mode);
+    if (!els || !els.list || !els.detail) return;
+    if (!users) return;
+    const q = els.search ? els.search.value : "";
+    const filtered = users.filter((u) => userMatchesStaffQuery(u, q));
+    const sel = staffState.selectedId[mode];
+    if (sel != null && !filtered.some((u) => u.id === sel)) {
+      staffState.selectedId[mode] = null;
+    }
+    renderStaffUserList(mode, users, q);
+    const selId = staffState.selectedId[mode];
+    const u = selId != null ? users.find((x) => x.id === selId) : null;
+    renderStaffUserDetail(mode, u, staffState.myId);
+  }
+
+  function renderStaffUserList(mode, users, query) {
+    const els = getStaffEls(mode);
+    if (!els || !els.list) return;
+    const filtered = users.filter((u) => userMatchesStaffQuery(u, query));
+    const sel = staffState.selectedId[mode];
+    els.list.innerHTML = "";
+    filtered.forEach((u) => {
+      const li = document.createElement("li");
+      li.setAttribute("role", "option");
+      const initials = escapeHtml(profileInitials(u.username));
+      const hue = profileHue(u.username);
+      const variantId = resolveMcVariantForUser(u);
+      const chain = avatarUrlChain(u.username, variantId, 48, u.id);
+      const avSrc = chain[0] || "";
+      const isSel = sel === u.id;
+      const imgOrPh = avSrc
+        ? `<img src="${escapeHtml(avSrc)}" alt="" width="40" height="40" loading="lazy" decoding="async" referrerpolicy="no-referrer" />`
+        : `<span class="staff-user-item-fallback">${initials}</span>`;
+      li.innerHTML = `
+        <button type="button" class="staff-user-item${isSel ? " is-selected" : ""}" data-staff-pick="${mode}" data-user-id="${u.id}">
+          <div class="staff-user-item-avatar" style="--avatar-hue:${hue}">
+            ${imgOrPh}
+          </div>
+          <span class="staff-user-item-text">
+            <span class="staff-user-item-name">${escapeHtml(u.username)}</span>
+            <span class="staff-user-item-sub">#${u.id} · ${escapeHtml(u.email || "—")}</span>
+          </span>
+        </button>
+      `;
+      els.list.appendChild(li);
+    });
+  }
+
+  function renderStaffUserDetail(mode, u, myId) {
+    const els = getStaffEls(mode);
+    if (!els || !els.detail) return;
+    if (!u) {
+      els.detail.innerHTML = `<div class="staff-user-detail-empty"><p>Выберите игрока в списке слева.</p></div>`;
+      return;
+    }
+    const isSelf = u.id === myId;
+    const guardianBadge = u.is_admin
+      ? '<span class="profile-badge profile-badge-guardian">Хранитель</span>'
+      : '<span class="profile-badge">Игрок</span>';
+    const banBadge = u.is_banned
+      ? '<span class="profile-badge profile-badge-exile">Изгнан</span>'
+      : '<span class="profile-badge profile-badge-warden">В цитадели</span>';
+
+    const initials = escapeHtml(profileInitials(u.username));
+    const hue = profileHue(u.username);
+    const variantId = resolveMcVariantForUser(u);
+    const chain = avatarUrlChain(u.username, variantId, MC_HEAD_MAIN, u.id);
+    const avSrc = chain[0] || "";
+
+    let actionsHtml = "";
+    if (isSelf) {
+      actionsHtml = '<p class="staff-detail-self-note">Это вы — действия с собой недоступны.</p>';
+    } else {
+      const banBtn = u.is_banned
+        ? `<button type="button" class="btn btn-small" data-staff-act="ban" data-staff-mode="${mode}" data-user-id="${u.id}" data-to="false">Разбан</button>`
+        : `<button type="button" class="btn btn-small btn-danger" data-staff-act="ban" data-staff-mode="${mode}" data-user-id="${u.id}" data-to="true">Бан</button>`;
+      const admBtn = u.is_admin
+        ? `<button type="button" class="btn btn-small" data-staff-act="admin" data-staff-mode="${mode}" data-user-id="${u.id}" data-to="false">Снять админа</button>`
+        : `<button type="button" class="btn btn-small btn-primary" data-staff-act="admin" data-staff-mode="${mode}" data-user-id="${u.id}" data-to="true">Сделать админом</button>`;
+      actionsHtml = `<div class="staff-detail-actions-inner">
+        ${banBtn}
+        ${admBtn}
+        <button type="button" class="btn btn-small btn-ghost" disabled title="Скоро">Метки</button>
+      </div>`;
+    }
+
+    els.detail.innerHTML = `
+      <div class="staff-detail-card">
+        <div class="staff-detail-top">
+          <div class="staff-detail-avatar-wrap">
+            <div class="profile-avatar-frame staff-detail-avatar-frame" data-avatar-variant="${escapeHtml(variantId)}" style="--avatar-hue:${hue}">
+              <div class="profile-avatar-inner">
+                ${avSrc ? `<img class="profile-avatar-img" src="${escapeHtml(avSrc)}" alt="" width="${MC_HEAD_MAIN}" height="${MC_HEAD_MAIN}" loading="lazy" decoding="async" referrerpolicy="no-referrer" />` : ""}
+                <div class="profile-avatar-fallback" aria-hidden="true">${initials}</div>
+              </div>
+            </div>
+          </div>
+          <div class="staff-detail-heading">
+            <h3 class="staff-detail-name">${escapeHtml(u.username)}</h3>
+          </div>
+        </div>
+        <dl class="staff-detail-dl">
+          <div><dt>ID</dt><dd>${u.id}</dd></div>
+          <div><dt>Email</dt><dd>${escapeHtml(u.email || "—")}</dd></div>
+        </dl>
+        <div class="staff-detail-badges-wrap" aria-labelledby="staff-badges-h-${mode}">
+          <h4 id="staff-badges-h-${mode}" class="staff-detail-badges-title">Метки</h4>
+          <div class="profile-hero-badges" aria-label="Роль и статус">${guardianBadge}${banBadge}</div>
+        </div>
+        <div class="staff-detail-actions">${actionsHtml}</div>
+      </div>
+    `;
+    const card = els.detail.querySelector(".staff-detail-card");
+    if (card && avSrc) {
+      card.dataset.profileUserId = String(u.id);
+      bindProfileAvatarImage(card, u.username, variantId);
+    }
+  }
+
+  async function loadStaffUsers(mode, opts) {
+    const keepSelection = opts && opts.keepSelection;
+    const els = getStaffEls(mode);
+    if (!els || !els.list) return;
+    if (els.msg) {
+      els.msg.textContent = "";
+      els.msg.className = "flash";
+    }
+    if (!getToken()) {
+      showView("login");
+      return;
+    }
+    try {
+      const me = await fetchAuthMeCached();
+      if (!me) {
+        showView("login");
+        return;
+      }
+      if (!me.is_admin) {
+        showView("profile");
+        return;
+      }
+      staffState.myId = me.id;
+      const users = await apiFetch("/admin/users");
+      staffState.cache[mode] = users;
+      if (!keepSelection) {
+        staffState.selectedId[mode] = null;
+      }
+      syncStaffListAndDetail(mode);
+    } catch (err) {
+      if (els.msg) {
+        els.msg.classList.add("flash-error");
+        els.msg.textContent = err.message;
+      }
+    }
+  }
+
   function showView(name) {
     persistCurrentView(name);
     document.body.setAttribute("data-view", name);
@@ -234,7 +452,10 @@
       btn.classList.toggle("is-active", btn.getAttribute("data-nav") === name);
     });
     if (name === "profile") loadProfile();
-    if (name === "admin") loadAdminUsers();
+    if (name === "admin") loadStaffUsers("admin");
+    if (name === "forgot-password") resetForgotPasswordUi();
+    if (name === "cooperation") resetCooperationUi();
+    if (name === "processing") loadStaffUsers("processing");
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     requestAnimationFrame(() => document.dispatchEvent(new CustomEvent("wc-l-layout-refresh")));
   }
@@ -295,17 +516,7 @@
         submitBtn.textContent = "Входим…";
       }
       try {
-        const res = await fetch(API + "/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ login, password }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(
-            typeof data.detail === "string" ? data.detail : data.detail?.[0]?.msg || "Неверный логин или пароль"
-          );
-        }
+        const data = await apiFetch("/auth/login", { method: "POST", body: { login, password } });
         if (!data.access_token) {
           throw new Error("Сервер не вернул токен входа.");
         }
@@ -313,10 +524,11 @@
         msg.classList.add("flash-success");
         msg.textContent = "Добро пожаловать в цитадель!";
         showView("profile");
-        checkApiStatus();
       } catch (err) {
         msg.classList.add("flash-error");
-        msg.textContent = err.message;
+        let text = err && err.message ? String(err.message) : "Ошибка входа";
+        if (text === "Invalid credentials") text = "Неверный логин или пароль.";
+        msg.textContent = text;
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
@@ -351,7 +563,6 @@
         msg.textContent = "Учётная запись создана. Войдите.";
         registerForm.reset();
         setTimeout(() => showView("login"), 800);
-        checkApiStatus();
       } catch (err) {
         msg.classList.add("flash-error");
         msg.textContent = err.message;
@@ -364,61 +575,74 @@
     });
   }
 
+  document.getElementById("form-cooperation")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const msg = document.getElementById("cooperation-message");
+    const fd = new FormData(form);
+    const contact = String(fd.get("contact") || "").trim();
+    const skills = String(fd.get("skills") || "").trim();
+    if (contact.length < 3 || skills.length < 10) {
+      if (msg) {
+        msg.className = "flash flash-error";
+        msg.textContent = "Заполните все поля заявки чуть подробнее.";
+      }
+      return;
+    }
+    if (msg) {
+      msg.className = "flash flash-success";
+      msg.textContent = "Заявка принята. После подключения системы обработки она будет доступна администраторам.";
+    }
+    // TODO(backend): отправлять заявку на сотрудничество админам и выводить её во вкладке обработки.
+    form.reset();
+  });
+
   /** Головы mc-heads.net; в меню только превью, подписи — в title (подсказка при наведении). */
   const MC_HEAD_MAIN = 128;
-  const MC_HEAD_MENU = 32;
+  /** Превью в меню «Внешний вид» (крупнее для сетки). */
+  const MC_HEAD_MENU = 48;
   const MC_AVATAR_VARIANTS = Object.freeze([
-    { id: "coin_spin", headName: null, label: "Монета", asset: "img/coin-spin.gif" },
+    { id: "coin_spin", headName: null, label: "Монета", asset: "img/avatar-1.gif" },
     {
       id: "lep_pair",
       headName: null,
       label: "3lEP",
-      asset: "img/3lEP.gif",
+      asset: "img/avatar-2.gif",
     },
-    { id: "pack_4p8p", headName: null, label: "4P8P", asset: "img/4P8P-slow.gif?cb=3", combined: true },
+    { id: "pack_4p8p", headName: null, label: "4P8P", asset: "img/avatar-3.gif", combined: true },
     {
       id: "heart_pair",
       headName: null,
       label: "Сердце",
-      asset: "img/mxjfiles-heart-22297-slow.gif?cb=2",
-      backgroundAsset: "img/WBVi.gif",
+      asset: "img/avatar-4.gif",
+      backgroundAsset: "img/avatar-bg-1.gif",
     },
-    { id: "cat_combo", headName: null, label: "Кот", asset: "img/u_iglgsndacj-cat-6147.gif", combined: true },
+    { id: "cat_combo", headName: null, label: "Кот", asset: "img/avatar-5.gif", combined: true },
     {
       id: "diamond_pair",
       headName: null,
       label: "Алмаз",
-      asset: "img/pikura-diamond-20755.gif",
-      backgroundAsset: "img/HDso.gif",
+      asset: "img/avatar-6.gif",
+      backgroundAsset: "img/avatar-bg-2.gif",
     },
     { id: "chicken", headName: "MHF_Chicken", label: "Курица" },
     { id: "pig", headName: "MHF_Pig", label: "Свинья" },
-    { id: "custom_upload", headName: null, label: "С устройства" },
   ]);
   /** Раньше был «По нику» (скин mc-heads); теперь по умолчанию — монета. */
   const DEFAULT_MC_AVATAR_VARIANT = "coin_spin";
   const MC_AVATAR_STORAGE_KEY = "wc_l_mc_avatar_variant_by_user";
-  const WC_L_CUSTOM_AVATAR_KEY = "wc_l_custom_avatar_data_by_user";
   /** Декоративная рамка поверх аватарки (PNG поверх круга). */
   const PROFILE_FRAME_VARIANTS = Object.freeze([
     { id: "none", label: "Без рамки", asset: null },
-    { id: "pngwing_1", label: "Рамка 1", asset: "img/pngwing.com (1).png" },
+    { id: "pngwing_1", label: "Рамка 1", asset: "img/avatar-frame-1.png" },
   ]);
   const DEFAULT_PROFILE_FRAME = "none";
   const PROFILE_FRAME_STORAGE_KEY = "wc_l_profile_frame_by_user";
-  /** Превью плитки «с устройства», пока файл не выбран. */
-  const CUSTOM_AVATAR_MENU_PLACEHOLDER_SRC =
-    "data:image/svg+xml," +
-    encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="%23221818"/><path fill="none" stroke="%23c9a627" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M7 22l12-12 3 3-12 12H7v-3z"/><path fill="%23c9a627" d="M19 10l3 3 1.5-1.5L20.5 8.5 19 10z"/></svg>'
-    );
 
   let _mcAvatarMapCache = null;
-  let _customAvatarMapCache = null;
   let _profileFrameMapCache = null;
   window.addEventListener("storage", (e) => {
     if (e.key === MC_AVATAR_STORAGE_KEY) _mcAvatarMapCache = null;
-    if (e.key === WC_L_CUSTOM_AVATAR_KEY) _customAvatarMapCache = null;
     if (e.key === PROFILE_FRAME_STORAGE_KEY) _profileFrameMapCache = null;
   });
 
@@ -484,8 +708,9 @@
     deco.src = localStaticUrl(def.asset);
   }
 
-  function renderProfileFrameMenuHtml(currentFrameId) {
-    const tiles = PROFILE_FRAME_VARIANTS.map((v) => {
+  function renderProfileFrameTilesHtml(currentFrameId, tileSize) {
+    const sz = tileSize != null ? tileSize : MC_HEAD_MENU;
+    return PROFILE_FRAME_VARIANTS.map((v) => {
       const sel = v.id === currentFrameId ? " is-selected" : "";
       const title = escapeHtml(v.label);
       let inner = "";
@@ -493,23 +718,61 @@
         inner = '<span class="profile-frame-tile-none" aria-hidden="true">—</span>';
       } else if (v.asset) {
         const src = localStaticUrl(v.asset);
-        inner = `<img src="${src}" alt="" width="32" height="32" loading="lazy" decoding="async" referrerpolicy="no-referrer" />`;
+        inner = `<img src="${src}" alt="" width="${sz}" height="${sz}" loading="lazy" decoding="async" referrerpolicy="no-referrer" />`;
       }
       return `<button type="button" class="profile-frame-tile${sel}" role="menuitem" data-profile-frame="${v.id}" title="${title}" aria-label="${title}">${inner}</button>`;
     }).join("");
-    return `<div class="profile-frame-menu hidden" id="profile-frame-menu" role="menu" aria-label="Рамка аватара" aria-hidden="true">
-      <div class="profile-frame-menu-grid" role="group">${tiles}</div>
+  }
+
+  /** Одно меню: сверху вкладки «Аватар» / «Рамка», ниже сетка. */
+  function renderProfileLookMenuHtml(username, currentVariantId, userId, currentFrameId) {
+    const avatarTiles = MC_AVATAR_VARIANTS.map((v) => {
+      const sel = v.id === currentVariantId ? " is-selected" : "";
+      const src = mcAvatarMenuTileSrc(username, v, userId);
+      const title = escapeHtml(v.label);
+      return `<button type="button" class="profile-avatar-tile${sel}" role="menuitem" data-mc-variant="${v.id}" title="${title}" aria-label="${title}">
+        <img src="${src}" alt="" width="${MC_HEAD_MENU}" height="${MC_HEAD_MENU}" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
+      </button>`;
+    }).join("");
+    const frameTiles = renderProfileFrameTilesHtml(currentFrameId, MC_HEAD_MENU);
+    return `<div class="profile-look-menu hidden" id="profile-look-menu" role="menu" aria-label="Внешний вид профиля" aria-hidden="true">
+      <div class="profile-look-menu-tabs" role="tablist" aria-label="Раздел">
+        <button type="button" class="profile-look-tab is-active" role="tab" id="profile-look-tab-avatar" data-look-tab="avatar" aria-selected="true" aria-controls="profile-look-panel-avatar">Аватар</button>
+        <button type="button" class="profile-look-tab" role="tab" id="profile-look-tab-frame" data-look-tab="frame" aria-selected="false" aria-controls="profile-look-panel-frame">Рамка</button>
+      </div>
+      <div class="profile-look-panel" id="profile-look-panel-avatar" role="tabpanel" aria-labelledby="profile-look-tab-avatar">
+        <div class="profile-look-grid profile-look-grid--avatar" role="group">${avatarTiles}</div>
+      </div>
+      <div class="profile-look-panel hidden" id="profile-look-panel-frame" role="tabpanel" aria-labelledby="profile-look-tab-frame">
+        <div class="profile-look-grid profile-look-grid--frame" role="group">${frameTiles}</div>
+      </div>
     </div>`;
   }
 
-  function closeProfileFrameMenu() {
-    const menu = document.getElementById("profile-frame-menu");
-    const btn = document.getElementById("profile-frame-edit-btn");
+  function setProfileLookTab(which) {
+    const avatarTab = document.getElementById("profile-look-tab-avatar");
+    const frameTab = document.getElementById("profile-look-tab-frame");
+    const avatarPanel = document.getElementById("profile-look-panel-avatar");
+    const framePanel = document.getElementById("profile-look-panel-frame");
+    if (!avatarTab || !frameTab || !avatarPanel || !framePanel) return;
+    const isAvatar = which === "avatar";
+    avatarTab.classList.toggle("is-active", isAvatar);
+    frameTab.classList.toggle("is-active", !isAvatar);
+    avatarTab.setAttribute("aria-selected", isAvatar ? "true" : "false");
+    frameTab.setAttribute("aria-selected", isAvatar ? "false" : "true");
+    avatarPanel.classList.toggle("hidden", !isAvatar);
+    framePanel.classList.toggle("hidden", isAvatar);
+  }
+
+  function closeProfileLookMenu() {
+    const menu = document.getElementById("profile-look-menu");
+    const btn = document.getElementById("profile-look-edit-btn");
     if (menu) {
       menu.classList.add("hidden");
       menu.setAttribute("aria-hidden", "true");
     }
     if (btn) btn.setAttribute("aria-expanded", "false");
+    setProfileLookTab("avatar");
   }
   function readMcAvatarMap() {
     if (_mcAvatarMapCache) return _mcAvatarMapCache;
@@ -528,87 +791,6 @@
     localStorage.setItem(MC_AVATAR_STORAGE_KEY, JSON.stringify(map));
   }
 
-  function readCustomAvatarMap() {
-    if (_customAvatarMapCache) return _customAvatarMapCache;
-    try {
-      const raw = localStorage.getItem(WC_L_CUSTOM_AVATAR_KEY);
-      _customAvatarMapCache = raw ? JSON.parse(raw) : {};
-      if (!_customAvatarMapCache || typeof _customAvatarMapCache !== "object") _customAvatarMapCache = {};
-    } catch {
-      _customAvatarMapCache = {};
-    }
-    return _customAvatarMapCache;
-  }
-
-  function writeCustomAvatarMap(map) {
-    localStorage.setItem(WC_L_CUSTOM_AVATAR_KEY, JSON.stringify(map));
-    _customAvatarMapCache = map;
-  }
-
-  function getCustomAvatarDataUrl(userId) {
-    const s = readCustomAvatarMap()[String(userId)];
-    return typeof s === "string" && s.startsWith("data:image/") ? s : "";
-  }
-
-  function setCustomAvatarDataUrl(userId, dataUrl) {
-    const map = { ...readCustomAvatarMap() };
-    map[String(userId)] = dataUrl;
-    try {
-      writeCustomAvatarMap(map);
-    } catch {
-      throw new Error("quota");
-    }
-  }
-
-  function downscaleImageFileToDataUrl(file, maxEdge, maxChars, minQuality) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error("read"));
-      reader.onload = () => {
-        const img = new Image();
-        img.onload = () => {
-          try {
-            const w = img.naturalWidth;
-            const h = img.naturalHeight;
-            if (!w || !h) {
-              reject(new Error("size"));
-              return;
-            }
-            const scale = Math.min(1, maxEdge / Math.max(w, h));
-            const cw = Math.max(1, Math.round(w * scale));
-            const ch = Math.max(1, Math.round(h * scale));
-            const canvas = document.createElement("canvas");
-            canvas.width = cw;
-            canvas.height = ch;
-            const ctx = canvas.getContext("2d");
-            if (!ctx) {
-              reject(new Error("canvas"));
-              return;
-            }
-            ctx.drawImage(img, 0, 0, cw, ch);
-            let q = 0.88;
-            let dataUrl = canvas.toDataURL("image/jpeg", q);
-            const floor = minQuality != null ? minQuality : 0.42;
-            while (dataUrl.length > maxChars && q > floor) {
-              q -= 0.08;
-              dataUrl = canvas.toDataURL("image/jpeg", q);
-            }
-            if (dataUrl.length > maxChars) {
-              reject(new Error("large"));
-              return;
-            }
-            resolve(dataUrl);
-          } catch (e) {
-            reject(e);
-          }
-        };
-        img.onerror = () => reject(new Error("decode"));
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-
   function getMcVariantDef(variantId) {
     for (let i = 0; i < MC_AVATAR_VARIANTS.length; i += 1) {
       if (MC_AVATAR_VARIANTS[i].id === variantId) return MC_AVATAR_VARIANTS[i];
@@ -621,12 +803,10 @@
 
   function getStoredMcVariant(userId) {
     const v = readMcAvatarMap()[String(userId)];
+    if (v === "custom_upload") return DEFAULT_MC_AVATAR_VARIANT;
     if (v) {
       for (let i = 0; i < MC_AVATAR_VARIANTS.length; i += 1) {
-        if (MC_AVATAR_VARIANTS[i].id === v) {
-          if (v === "custom_upload" && !getCustomAvatarDataUrl(userId)) return DEFAULT_MC_AVATAR_VARIANT;
-          return v;
-        }
+        if (MC_AVATAR_VARIANTS[i].id === v) return v;
       }
     }
     return DEFAULT_MC_AVATAR_VARIANT;
@@ -644,6 +824,24 @@
     const map = { ...readMcAvatarMap() };
     map[String(userId)] = variantId;
     writeMcAvatarMap(map);
+  }
+
+  /** Вариант с сервера (/me, /admin/users) или из localStorage (до синхронизации). */
+  function resolveMcVariantForUser(u) {
+    if (!u || u.id == null) return DEFAULT_MC_AVATAR_VARIANT;
+    const fromApi = u.mc_avatar_variant;
+    if (fromApi && MC_AVATAR_VARIANTS.some((v) => v.id === fromApi)) {
+      return fromApi;
+    }
+    return getStoredMcVariant(u.id);
+  }
+
+  function persistMcAvatarVariantToServer(userId, variantId) {
+    return apiFetch("/auth/me", { method: "PATCH", body: { mc_avatar_variant: variantId } })
+      .then(() => {
+        invalidateAuthMeCache();
+      })
+      .catch(() => {});
   }
 
   function minecraftValidUsername(username) {
@@ -664,9 +862,6 @@
    */
   function buildMcAvatarUrl(username, variantId, size, userId) {
     const v = getMcVariantDef(variantId);
-    if (v.id === "custom_upload") {
-      return userId != null ? getCustomAvatarDataUrl(Number(userId)) : "";
-    }
     if (v.asset) {
       return localStaticUrl(v.asset);
     }
@@ -684,10 +879,6 @@
   }
 
   function mcAvatarMenuTileSrc(username, v, userId) {
-    if (v.id === "custom_upload") {
-      const d = userId != null ? getCustomAvatarDataUrl(Number(userId)) : "";
-      return d || CUSTOM_AVATAR_MENU_PLACEHOLDER_SRC;
-    }
     return buildMcAvatarUrl(username, v.id, MC_HEAD_MENU, userId);
   }
 
@@ -706,10 +897,6 @@
   /** Если mc-heads недоступен — minotar, потом запасной Steve; иначе остаются инициалы (например «AD» у admin). */
   function avatarUrlChain(username, variantId, size, userId) {
     const v = getMcVariantDef(variantId);
-    if (v.id === "custom_upload") {
-      const d = userId != null ? getCustomAvatarDataUrl(Number(userId)) : "";
-      return d ? [d] : [];
-    }
     if (v.asset) {
       return [localStaticUrl(v.asset)];
     }
@@ -721,20 +908,6 @@
       `https://minotar.net/helm/${encodeURIComponent(skin)}/${size}`,
       `https://mc-heads.net/avatar/Steve/${size}`,
     ]);
-  }
-
-  function renderMcAvatarMenuHtml(username, currentVariantId, userId) {
-    const tiles = MC_AVATAR_VARIANTS.map((v) => {
-      const sel = v.id === currentVariantId ? " is-selected" : "";
-      const src = mcAvatarMenuTileSrc(username, v, userId);
-      const title = escapeHtml(v.label);
-      return `<button type="button" class="profile-avatar-tile${sel}" role="menuitem" data-mc-variant="${v.id}" title="${title}" aria-label="${title}">
-        <img src="${src}" alt="" width="${MC_HEAD_MENU}" height="${MC_HEAD_MENU}" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
-      </button>`;
-    }).join("");
-    return `<div class="profile-avatar-menu hidden" id="profile-avatar-menu" role="menu" aria-label="Выбор головы Minecraft" aria-hidden="true">
-      <div class="profile-avatar-menu-grid" role="group">${tiles}</div>
-    </div>`;
   }
 
   function bindProfileAvatarImage(box, username, variantId) {
@@ -765,7 +938,7 @@
   }
 
   function bindMcAvatarMenuTiles(root) {
-    const menu = root.querySelector("#profile-avatar-menu");
+    const menu = root.querySelector("#profile-look-menu");
     const un = root.dataset.profileUsername;
     const uid = root.dataset.profileUserId !== undefined ? Number(root.dataset.profileUserId, 10) : null;
     if (!menu || un === undefined) return;
@@ -815,54 +988,28 @@
     bindProfileAvatarImage(box, username, variantId);
   }
 
-  function closeMcAvatarMenu() {
-    const menu = document.getElementById("profile-avatar-menu");
-    const editBtn = document.getElementById("profile-avatar-edit-btn");
-    if (menu) {
-      menu.classList.add("hidden");
-      menu.setAttribute("aria-hidden", "true");
-    }
-    if (editBtn) editBtn.setAttribute("aria-expanded", "false");
-  }
-
   document.body.addEventListener("click", (e) => {
-    const uploadBtn = e.target.closest("#profile-avatar-upload-btn");
-    if (uploadBtn && document.getElementById("profile-content")?.contains(uploadBtn)) {
+    const lookTab = e.target.closest("[data-look-tab]");
+    if (lookTab && document.getElementById("profile-content")?.contains(lookTab)) {
       e.stopPropagation();
-      document.getElementById("profile-avatar-file-input")?.click();
+      const tab = lookTab.getAttribute("data-look-tab");
+      if (tab === "avatar" || tab === "frame") setProfileLookTab(tab);
       return;
     }
 
-    const editBtn = e.target.closest("#profile-avatar-edit-btn");
-    if (editBtn && document.getElementById("profile-content")?.contains(editBtn)) {
+    const lookBtn = e.target.closest("#profile-look-edit-btn");
+    if (lookBtn && document.getElementById("profile-content")?.contains(lookBtn)) {
       e.stopPropagation();
-      const menu = document.getElementById("profile-avatar-menu");
-      if (!menu) return;
-      const open = menu.classList.contains("hidden");
-      if (open) {
-        closeProfileFrameMenu();
-        menu.classList.remove("hidden");
-        menu.setAttribute("aria-hidden", "false");
-        editBtn.setAttribute("aria-expanded", "true");
-      } else {
-        closeMcAvatarMenu();
-      }
-      return;
-    }
-
-    const frameBtn = e.target.closest("#profile-frame-edit-btn");
-    if (frameBtn && document.getElementById("profile-content")?.contains(frameBtn)) {
-      e.stopPropagation();
-      const menu = document.getElementById("profile-frame-menu");
+      const menu = document.getElementById("profile-look-menu");
       if (!menu) return;
       const willOpen = menu.classList.contains("hidden");
       if (willOpen) {
-        closeMcAvatarMenu();
+        setProfileLookTab("avatar");
         menu.classList.remove("hidden");
         menu.setAttribute("aria-hidden", "false");
-        frameBtn.setAttribute("aria-expanded", "true");
+        lookBtn.setAttribute("aria-expanded", "true");
       } else {
-        closeProfileFrameMenu();
+        closeProfileLookMenu();
       }
       return;
     }
@@ -876,16 +1023,13 @@
       if (userId === undefined || username === undefined) return;
       const variantId = item.getAttribute("data-mc-variant");
       if (!variantId || !MC_AVATAR_VARIANTS.some((v) => v.id === variantId)) return;
-      if (variantId === "custom_upload" && !getCustomAvatarDataUrl(Number(userId, 10))) {
-        document.getElementById("profile-avatar-file-input")?.click();
-        return;
-      }
       setStoredMcVariant(Number(userId), variantId);
+      void persistMcAvatarVariantToServer(Number(userId), variantId);
       setMainProfileAvatar(root, username, variantId);
       root.querySelectorAll("[data-mc-variant]").forEach((el) => {
         el.classList.toggle("is-selected", el.getAttribute("data-mc-variant") === variantId);
       });
-      closeMcAvatarMenu();
+      closeProfileLookMenu();
     }
 
     const frameItem = e.target.closest("[data-profile-frame]");
@@ -902,64 +1046,19 @@
       frameRoot.querySelectorAll("[data-profile-frame]").forEach((el) => {
         el.classList.toggle("is-selected", el.getAttribute("data-profile-frame") === frameId);
       });
-      closeProfileFrameMenu();
+      closeProfileLookMenu();
     }
   });
 
   document.addEventListener("click", (e) => {
     if (e.target.closest(".profile-avatar-shell")) return;
-    closeMcAvatarMenu();
-    closeProfileFrameMenu();
+    if (e.target.closest(".profile-hero-look-wrap")) return;
+    closeProfileLookMenu();
   });
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
-      closeMcAvatarMenu();
-      closeProfileFrameMenu();
-    }
-  });
-
-  document.getElementById("profile-avatar-file-input")?.addEventListener("change", async (e) => {
-    const input = e.target;
-    const file = input.files && input.files[0];
-    input.value = "";
-    if (!file || !String(file.type || "").startsWith("image/")) return;
-    const root = document.getElementById("profile-content");
-    const userIdStr = root && root.dataset.profileUserId;
-    if (!root || userIdStr === undefined) return;
-    const uid = Number(userIdStr, 10);
-    const username = root.dataset.profileUsername;
-    const msg = document.getElementById("profile-message");
-    try {
-      const dataUrl = await downscaleImageFileToDataUrl(file, 256, 480000, 0.42);
-      setCustomAvatarDataUrl(uid, dataUrl);
-      setStoredMcVariant(uid, "custom_upload");
-      if (username !== undefined) {
-        setMainProfileAvatar(root, username, "custom_upload");
-        root.querySelectorAll("[data-mc-variant]").forEach((el) => {
-          el.classList.toggle("is-selected", el.getAttribute("data-mc-variant") === "custom_upload");
-        });
-        const tileImg = root.querySelector('[data-mc-variant="custom_upload"] img');
-        if (tileImg) tileImg.src = dataUrl;
-        bindMcAvatarMenuTiles(root);
-        closeMcAvatarMenu();
-      }
-      if (msg) {
-        msg.className = "flash";
-        msg.textContent = "";
-      }
-    } catch (err) {
-      const code = err && err.message;
-      if (msg) {
-        msg.className = "flash flash-error";
-        if (code === "quota") {
-          msg.textContent = "Не хватает места в хранилище браузера. Освободите данные сайта или выберите файл меньше.";
-        } else if (code === "large") {
-          msg.textContent = "Файл слишком большой после сжатия. Выберите другое изображение.";
-        } else {
-          msg.textContent = "Не удалось загрузить изображение. Попробуйте другой файл (JPG, PNG).";
-        }
-      }
+      closeProfileLookMenu();
     }
   });
 
@@ -999,7 +1098,8 @@
         showView("login");
         return;
       }
-      const variantId = getStoredMcVariant(me.id);
+      const variantId = resolveMcVariantForUser(me);
+      setStoredMcVariant(me.id, variantId);
       const profileFrameId = getStoredProfileFrame(me.id);
       const hue = profileHue(me.username);
       const initials = escapeHtml(profileInitials(me.username));
@@ -1014,10 +1114,6 @@
       const banBadge = me.is_banned
         ? '<span class="profile-badge profile-badge-exile">Изгнан</span>'
         : '<span class="profile-badge profile-badge-warden">В цитадели</span>';
-
-      const adminBlock = me.is_admin
-        ? '<div class="profile-hero-admin"><button type="button" class="btn btn-primary" data-nav="admin">Зал хранителей</button></div>'
-        : "";
 
       box.innerHTML = `
         <div class="profile-layout">
@@ -1034,35 +1130,22 @@
                     </div>
                     <img class="profile-avatar-frame-deco is-hidden" alt="" width="${MC_HEAD_MAIN}" height="${MC_HEAD_MAIN}" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
                   </div>
-                  <div class="profile-avatar-bookmarks" role="toolbar" aria-label="Голова Minecraft, рамка, свой аватар">
-                    <div class="profile-avatar-bookmark">
-                      <div class="profile-avatar-bookmark-tab">
-                        <button type="button" class="profile-avatar-edit-btn" id="profile-avatar-edit-btn" aria-expanded="false" aria-controls="profile-avatar-menu" aria-haspopup="true" title="Выбрать голову Minecraft">✎</button>
-                      </div>
-                      ${renderMcAvatarMenuHtml(me.username, variantId, me.id)}
-                    </div>
-                    <div class="profile-avatar-bookmark">
-                      <div class="profile-avatar-bookmark-tab">
-                        <button type="button" class="profile-avatar-frame-btn" id="profile-frame-edit-btn" aria-expanded="false" aria-controls="profile-frame-menu" aria-haspopup="true" title="Рамка аватара" aria-label="Выбор рамки">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><rect x="7" y="7" width="10" height="10" rx="1" ry="1"/></svg>
-                        </button>
-                      </div>
-                      ${renderProfileFrameMenuHtml(profileFrameId)}
-                    </div>
-                    <div class="profile-avatar-bookmark">
-                      <div class="profile-avatar-bookmark-tab">
-                        <button type="button" class="profile-avatar-upload-btn" id="profile-avatar-upload-btn" title="Загрузить аватар с устройства" aria-label="Загрузить аватар с устройства">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5l6.74-6.74z"/><line x1="16" y1="8" x2="2" y2="22"/></svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
               <div class="profile-top-main">
-                <h3 class="profile-hero-name">${escapeHtml(me.username)}</h3>
-                <div class="profile-hero-badges">${guardianBadge}${banBadge}</div>
-                ${adminBlock}
+                <div class="profile-hero-head-row">
+                  <h3 class="profile-hero-name">${escapeHtml(me.username)}</h3>
+                  <div class="profile-hero-badges profile-hero-badges--top" aria-label="Роль и статус">
+                    ${guardianBadge}${banBadge}
+                  </div>
+                </div>
+                <div class="profile-hero-look-wrap">
+                  <div class="profile-hero-look-actions">
+                    <button type="button" class="btn" id="profile-look-edit-btn" aria-expanded="false" aria-controls="profile-look-menu" aria-haspopup="true">Аватар</button>
+                    <button type="button" class="btn btn-ghost" id="btn-profile-change-name-inline">Сменить имя</button>
+                  </div>
+                  ${renderProfileLookMenuHtml(me.username, variantId, me.id, profileFrameId)}
+                </div>
               </div>
             </div>
             <div class="profile-top-divider" aria-hidden="true"></div>
@@ -1073,6 +1156,10 @@
 
       box.dataset.profileUserId = String(me.id);
       box.dataset.profileUsername = me.username;
+      const guardiansBtn = document.getElementById("btn-profile-guardians");
+      const processingBtn = document.getElementById("btn-profile-processing");
+      if (guardiansBtn) guardiansBtn.classList.toggle("hidden", !me.is_admin);
+      if (processingBtn) processingBtn.classList.toggle("hidden", !me.is_admin);
       bindProfileAvatarImage(box, me.username, variantId);
       bindMcAvatarMenuTiles(box);
       applyProfileFrameOverlay(box, me.id);
@@ -1082,95 +1169,40 @@
     }
   }
 
-  function adminUsersQuery() {
-    const r = document.querySelector('input[name="admin-filter"]:checked');
-    if (!r) return "";
-    if (r.value === "admins") return "?is_admin=true";
-    if (r.value === "players") return "?is_admin=false";
-    return "";
-  }
-
-  async function loadAdminUsers() {
-    const tbody = document.querySelector("#admin-users tbody");
-    const msg = document.getElementById("admin-message");
-    if (!tbody) return;
-    tbody.innerHTML = "";
-    if (msg) {
-      msg.textContent = "";
-      msg.className = "flash";
-    }
-    if (!getToken()) {
-      showView("login");
-      return;
-    }
-    try {
-      const me = await fetchAuthMeCached();
-      if (!me) {
-        showView("login");
-        return;
-      }
-      const myId = me.id;
-      const users = await apiFetch("/admin/users" + adminUsersQuery());
-      users.forEach((u) => {
-        const tr = document.createElement("tr");
-        const isSelf = u.id === myId;
-        let actionsHtml;
-        if (isSelf) {
-          actionsHtml = '<span style="color:var(--text-muted);font-size:0.9rem">Это вы</span>';
-        } else {
-          const banBtn = u.is_banned
-            ? `<button type="button" class="btn btn-small" data-act="ban" data-id="${u.id}" data-to="false">Снять бан</button>`
-            : `<button type="button" class="btn btn-small btn-danger" data-act="ban" data-id="${u.id}" data-to="true">Бан</button>`;
-          const admBtn = u.is_admin
-            ? `<button type="button" class="btn btn-small" data-act="admin" data-id="${u.id}" data-to="false">Снять админа</button>`
-            : `<button type="button" class="btn btn-small btn-primary" data-act="admin" data-id="${u.id}" data-to="true">Сделать админом</button>`;
-          actionsHtml = `<div class="admin-actions-inner">${banBtn}${admBtn}</div>`;
-        }
-        tr.innerHTML = `
-          <td>${u.id}</td>
-          <td>${escapeHtml(u.username)}</td>
-          <td>${escapeHtml(u.email)}</td>
-          <td><span class="badge ${u.is_admin ? "badge-yes" : "badge-no"}">${u.is_admin ? "Да" : "Нет"}</span></td>
-          <td><span class="badge ${u.is_banned ? "badge-yes" : "badge-no"}">${u.is_banned ? "Да" : "Нет"}</span></td>
-          <td class="admin-actions">${actionsHtml}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    } catch (err) {
-      if (msg) {
-        msg.classList.add("flash-error");
-        msg.textContent = err.message;
-      }
-    }
-  }
-
-  document.querySelectorAll('input[name="admin-filter"]').forEach((inp) => {
-    inp.addEventListener("change", () => {
-      if (views.admin && views.admin.classList.contains("is-visible")) loadAdminUsers();
-    });
+  document.addEventListener("click", (e) => {
+    const pick = e.target.closest("[data-staff-pick]");
+    if (!pick) return;
+    const mode = pick.getAttribute("data-staff-pick");
+    if (mode !== "admin" && mode !== "processing") return;
+    const id = Number(pick.getAttribute("data-user-id"), 10);
+    staffState.selectedId[mode] = id;
+    syncStaffListAndDetail(mode);
   });
 
-  document.getElementById("btn-admin-refresh")?.addEventListener("click", () => loadAdminUsers());
-
-  document.querySelector("#admin-users tbody")?.addEventListener("click", async (e) => {
-    const btn = e.target.closest("button[data-act]");
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-staff-act]");
     if (!btn) return;
-    const act = btn.getAttribute("data-act");
-    const id = Number(btn.getAttribute("data-id"), 10);
+    const act = btn.getAttribute("data-staff-act");
+    const mode = btn.getAttribute("data-staff-mode");
+    const id = Number(btn.getAttribute("data-user-id"), 10);
     const toTrue = btn.getAttribute("data-to") === "true";
-    const msg = document.getElementById("admin-message");
+    if (!mode || (mode !== "admin" && mode !== "processing")) return;
+    const els = getStaffEls(mode);
+    const msg = els && els.msg;
     btn.disabled = true;
     try {
       if (act === "ban") {
         await apiFetch(`/admin/users/${id}/ban`, { method: "PATCH", body: { is_banned: toTrue } });
       } else if (act === "admin") {
         await apiFetch(`/admin/users/${id}/admin`, { method: "PATCH", body: { is_admin: toTrue } });
+      } else {
+        return;
       }
       if (msg) {
         msg.className = "flash flash-success";
         msg.textContent = "Сохранено.";
       }
-      await loadAdminUsers();
+      await loadStaffUsers(mode, { keepSelection: true });
       updateAuthNav();
     } catch (err) {
       if (msg) {
@@ -1180,6 +1212,11 @@
     } finally {
       btn.disabled = false;
     }
+  });
+
+  ["admin", "processing"].forEach((mode) => {
+    const els = getStaffEls(mode);
+    els.search?.addEventListener("input", () => syncStaffListAndDetail(mode));
   });
 
   function escapeHtml(s) {
@@ -1207,6 +1244,8 @@
   const profileModalOverlay = document.getElementById("profile-modal-overlay");
   const profileModalChange = document.getElementById("profile-modal-change-name");
   const profileModalChangePassword = document.getElementById("profile-modal-change-password");
+  const profileModalForgotPassword = document.getElementById("profile-modal-forgot-password");
+  const profileModalResetPassword = document.getElementById("profile-modal-reset-password");
 
   function closeProfileModals() {
     if (!profileModalOverlay) return;
@@ -1214,10 +1253,65 @@
     profileModalOverlay.setAttribute("aria-hidden", "true");
     profileModalChange?.classList.add("hidden");
     profileModalChangePassword?.classList.add("hidden");
+    profileModalForgotPassword?.classList.add("hidden");
+    profileModalResetPassword?.classList.add("hidden");
+  }
+
+  function resetProfileForgotModal() {
+    const msg = document.getElementById("profile-modal-forgot-msg");
+    if (msg) {
+      msg.textContent = "";
+      msg.className = "flash";
+    }
+  }
+
+  function openForgotPasswordFromProfileModal() {
+    if (!profileModalOverlay || !profileModalForgotPassword) return;
+    profileModalChange?.classList.add("hidden");
+    profileModalChangePassword?.classList.add("hidden");
+    profileModalResetPassword?.classList.add("hidden");
+    resetProfileForgotModal();
+    profileModalForgotPassword.classList.remove("hidden");
+    profileModalOverlay.classList.remove("hidden");
+    profileModalOverlay.setAttribute("aria-hidden", "false");
+    fetchAuthMeCached()
+      .then((me) => {
+        const masked = document.getElementById("profile-forgot-email-masked");
+        if (masked) masked.textContent = maskEmailHalf(me && me.email ? me.email : "");
+        // TODO(backend): автоматически вызывать отправку письма при открытии этой модалки.
+        document.getElementById("btn-profile-forgot-done")?.focus();
+      })
+      .catch(() => {
+        const masked = document.getElementById("profile-forgot-email-masked");
+        if (masked) masked.textContent = "ваш*****@почта.ru";
+        document.getElementById("btn-profile-forgot-done")?.focus();
+      });
+  }
+
+  function openResetPasswordModal() {
+    if (!profileModalOverlay || !profileModalResetPassword) return;
+    // TODO(backend): открывать эту модалку после проверки reset-token из ссылки письма.
+    profileModalChange?.classList.add("hidden");
+    profileModalChangePassword?.classList.add("hidden");
+    profileModalForgotPassword?.classList.add("hidden");
+    profileModalResetPassword.classList.remove("hidden");
+    profileModalOverlay.classList.remove("hidden");
+    profileModalOverlay.setAttribute("aria-hidden", "false");
+    const mini = document.getElementById("profile-modal-reset-password-msg");
+    if (mini) {
+      mini.textContent = "";
+      mini.className = "flash";
+    }
+    const form = document.getElementById("form-profile-reset-password");
+    if (form) form.reset();
+    document.getElementById("input-profile-reset-password-new")?.focus();
   }
 
   function openChangeNameModal() {
+    closeProfileLookMenu();
     if (!profileModalOverlay || !profileModalChange) return;
+    profileModalResetPassword?.classList.add("hidden");
+    profileModalForgotPassword?.classList.add("hidden");
     profileModalChangePassword?.classList.add("hidden");
     profileModalChange.classList.remove("hidden");
     profileModalOverlay.classList.remove("hidden");
@@ -1239,6 +1333,8 @@
   function openChangePasswordModal() {
     if (!profileModalOverlay || !profileModalChangePassword) return;
     profileModalChange?.classList.add("hidden");
+    profileModalResetPassword?.classList.add("hidden");
+    profileModalForgotPassword?.classList.add("hidden");
     profileModalChangePassword.classList.remove("hidden");
     profileModalOverlay.classList.remove("hidden");
     profileModalOverlay.setAttribute("aria-hidden", "false");
@@ -1253,7 +1349,7 @@
   }
 
   document.getElementById("view-profile")?.addEventListener("click", (e) => {
-    if (e.target.closest("#btn-profile-change-name")) {
+    if (e.target.closest("#btn-profile-change-name-inline")) {
       if (!getToken()) {
         showView("login");
         return;
@@ -1271,9 +1367,70 @@
     }
   });
 
+  document.getElementById("form-forgot-password")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const msg = document.getElementById("forgot-password-message");
+    const fd = new FormData(e.target);
+    const email = String(fd.get("email") || "").trim();
+    const basicOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!email || !basicOk) {
+      if (msg) {
+        msg.className = "flash flash-error";
+        msg.textContent = "Введите корректный адрес электронной почты.";
+      }
+      return;
+    }
+    if (msg) {
+      msg.textContent = "";
+      msg.className = "flash";
+    }
+    // TODO(backend): заменить локальный успех реальным POST /auth/password/forgot
+    // и показывать одинаковый ответ независимо от существования email.
+    const masked = document.getElementById("forgot-email-masked");
+    if (masked) masked.textContent = maskEmailHalf(email);
+    document.getElementById("forgot-password-step-form")?.classList.add("hidden");
+    document.getElementById("forgot-password-step-sent")?.classList.remove("hidden");
+  });
+
+  document.getElementById("btn-profile-forgot-password")?.addEventListener("click", () => {
+    openForgotPasswordFromProfileModal();
+  });
+
+  document.getElementById("btn-profile-forgot-done")?.addEventListener("click", closeProfileModals);
+
   document.getElementById("btn-profile-modal-cancel")?.addEventListener("click", closeProfileModals);
   document.getElementById("btn-profile-password-cancel")?.addEventListener("click", closeProfileModals);
+  document.getElementById("btn-profile-reset-password-cancel")?.addEventListener("click", closeProfileModals);
   document.getElementById("profile-modal-scrim")?.addEventListener("click", closeProfileModals);
+
+  document.getElementById("form-profile-reset-password")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const msg = document.getElementById("profile-modal-reset-password-msg");
+    const fd = new FormData(e.target);
+    const a = String(fd.get("new_password") || "");
+    const b = String(fd.get("new_password_confirm") || "");
+    if (a !== b) {
+      if (msg) {
+        msg.className = "flash flash-error";
+        msg.textContent = "Новый пароль и повтор не совпадают.";
+      }
+      return;
+    }
+    if (a.length < 8) {
+      if (msg) {
+        msg.className = "flash flash-error";
+        msg.textContent = "Пароль должен быть не короче 8 символов.";
+      }
+      return;
+    }
+    // TODO(backend): заменить заглушку реальным POST/PATCH reset-password
+    // с token/code из ссылки письма и новым паролем.
+    if (msg) {
+      msg.className = "flash flash-info";
+      msg.textContent =
+        "Интерфейс готов. Сохранение нового пароля по ссылке из письма заработает после подключения сервера восстановления.";
+    }
+  });
 
   document.getElementById("form-profile-change-username")?.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -1434,7 +1591,7 @@
 
     /** Верхний край полосы футера — монеты не ниже (как «рамка» снизу, симметрично шапке) */
     function footerTopDocY() {
-      const el = document.querySelector(".site-footer-band");
+      const el = document.querySelector(".site-footer");
       if (!el) return document.documentElement.scrollHeight;
       return el.getBoundingClientRect().top + window.scrollY;
     }
@@ -1461,12 +1618,7 @@
     const ORB_IDLE_DRIFT = 0.024;
     const WALL_BOUNCE = 0.88;
     const COIN_RESTITUTION = 0.82;
-    const STAR_GIF_NAMES = [
-      "звизда 1.gif",
-      "звезда 2_export_Анимация.gif",
-      "звезда 3.gif",
-      "звезда 4.gif",
-    ];
+    const STAR_GIF_NAMES = ["spark-1.gif", "spark-2.gif", "spark-3.gif", "spark-4.gif"];
     function starGifUrl(index) {
       return "static/img/" + encodeURIComponent(STAR_GIF_NAMES[index]);
     }
@@ -1709,10 +1861,13 @@
 
   updateAuthNav();
   showView(readStoredView());
-  checkApiStatus();
-  /* Реже опрос health — меньше фоновых запросов при открытой вкладке. */
-  setInterval(checkApiStatus, 120000);
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") checkApiStatus();
-  });
+  try {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("wc_l_reset") === "1") {
+      requestAnimationFrame(() => openResetPasswordModal());
+      const u = new URL(window.location.href);
+      u.searchParams.delete("wc_l_reset");
+      history.replaceState({}, "", u.pathname + u.search + u.hash);
+    }
+  } catch (_) {}
 })();
