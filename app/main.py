@@ -51,8 +51,7 @@ if frontend_static_dir.exists():
     app.mount("/static", StaticFiles(directory=frontend_static_dir), name="static")
 
 
-@app.get("/", response_model=None)
-def root(request: Request) -> object:
+def _frontend_or_fallback(request: Request) -> object:
     accepts_html = "text/html" in request.headers.get("accept", "")
     if frontend_index_file.exists() and accepts_html:
         return FileResponse(
@@ -67,3 +66,12 @@ def root(request: Request) -> object:
     }
 
 
+@app.get("/", response_model=None)
+def root(request: Request) -> object:
+    return _frontend_or_fallback(request)
+
+
+@app.get("/reset-password", response_model=None, include_in_schema=False)
+def reset_password_page(request: Request) -> object:
+    # Serve SPA entry for password reset links like `/reset-password?token=...`.
+    return _frontend_or_fallback(request)

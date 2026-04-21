@@ -43,3 +43,19 @@ class PasswordChange(BaseModel):
 class UserSelfUpdate(BaseModel):
     username: str | None = Field(default=None, min_length=3, max_length=50)
     mc_avatar_variant: str | None = Field(default=None, max_length=64)
+
+
+# Uniform response payload for endpoints where details should stay generic.
+class MessageResponse(BaseModel):
+    message: str
+
+
+# Request payload to start the password reset flow.
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+# Request payload to confirm password reset with one-time token.
+class PasswordResetConfirm(BaseModel):
+    token: str = Field(min_length=32, max_length=512)
+    new_password: str = Field(min_length=8, max_length=128)

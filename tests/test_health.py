@@ -21,3 +21,8 @@ def test_root_endpoint() -> None:
     assert payload["docs"] == "/docs"
 
 
+def test_reset_password_route_exists() -> None:
+    with TestClient(app) as client:
+        response = client.get("/reset-password", headers={"Accept": "text/html"})
+
+    assert response.status_code == 200

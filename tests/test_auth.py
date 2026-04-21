@@ -1,9 +1,16 @@
+from datetime import datetime, timedelta, timezone
+import secrets
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.core.config import get_settings
+from app.db.session import SessionLocal
 from app.main import app
+from app.models.password_reset_token import PasswordResetToken
+from app.models.user import User
+from app.services.auth import hash_password_reset_token
 
 settings = get_settings()
 
@@ -336,3 +343,126 @@ def test_patch_me_requires_at_least_one_field() -> None:
         assert r.json()["detail"] == "No fields to update"
 
 
+def test_password_reset_request_creates_token_for_existing_email() -> None:
+    with TestClient(app) as client:
+        suffix = uuid4().hex[:8]
+        username = f"resetreq_{suffix}"
+        email = f"{username}@example.com"
+        password = "strongpassword123"
+
+        client.post(
+            "/api/v1/auth/register",
+            json={"username": username, "email": email, "password": password},
+        )
+
+        response = client.post(
+            "/api/v1/auth/password-reset/request",
+            json={"email": email},
+        )
+        assert response.status_code == 200
+        assert response.json()["message"] == "If this email exists, reset instructions have been sent."
+
+        with SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email == email))
+            assert user is not None
+            token = db.scalar(select(PasswordResetToken).where(PasswordResetToken.user_id == user.id))
+            assert token is not None
+            assert token.used_at is None
+
+
+def test_password_reset_request_for_unknown_email_stays_generic() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/auth/password-reset/request",
+            json={"email": f"missing_{uuid4().hex[:8]}@example.com"},
+        )
+        assert response.status_code == 200
+        assert response.json()["message"] == "If this email exists, reset instructions have been sent."
+
+
+def test_password_reset_confirm_updates_password_and_invalidates_token() -> None:
+    with TestClient(app) as client:
+        suffix = uuid4().hex[:8]
+        username = f"resetok_{suffix}"
+        email = f"{username}@example.com"
+        old_password = "strongpassword123"
+        new_password = "newstrongpass456"
+        raw_token = secrets.token_urlsafe(32)
+
+        client.post(
+            "/api/v1/auth/register",
+            json={"username": username, "email": email, "password": old_password},
+        )
+
+        with SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email == email))
+            assert user is not None
+            db.add(
+                PasswordResetToken(
+                    user_id=user.id,
+                    token_hash=hash_password_reset_token(raw_token),
+                    expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
+                )
+            )
+            db.commit()
+
+        confirm = client.post(
+            "/api/v1/auth/password-reset/confirm",
+            json={"token": raw_token, "new_password": new_password},
+        )
+        assert confirm.status_code == 200
+        assert confirm.json()["message"] == "Password has been reset."
+
+        assert (
+            client.post(
+                "/api/v1/auth/login",
+                json={"login": username, "password": old_password},
+            ).status_code
+            == 401
+        )
+        assert (
+            client.post(
+                "/api/v1/auth/login",
+                json={"login": username, "password": new_password},
+            ).status_code
+            == 200
+        )
+
+        second_try = client.post(
+            "/api/v1/auth/password-reset/confirm",
+            json={"token": raw_token, "new_password": "anotherpass789"},
+        )
+        assert second_try.status_code == 400
+        assert second_try.json()["detail"] == "Invalid or expired reset token"
+
+
+def test_password_reset_confirm_rejects_expired_token() -> None:
+    with TestClient(app) as client:
+        suffix = uuid4().hex[:8]
+        username = f"resetexp_{suffix}"
+        email = f"{username}@example.com"
+        raw_token = secrets.token_urlsafe(32)
+
+        client.post(
+            "/api/v1/auth/register",
+            json={"username": username, "email": email, "password": "strongpassword123"},
+        )
+
+        with SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email == email))
+            assert user is not None
+            db.add(
+                PasswordResetToken(
+                    user_id=user.id,
+                    token_hash=hash_password_reset_token(raw_token),
+                    expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+                )
+            )
+            db.commit()
+
+        response = client.post(
+            "/api/v1/auth/password-reset/confirm",
+            json={"token": raw_token, "new_password": "newstrongpass456"},
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Invalid or expired reset token"

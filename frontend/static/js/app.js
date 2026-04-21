@@ -43,6 +43,7 @@
     "admin",
     "processing",
   ]);
+  let resetPasswordToken = null;
 
   function persistCurrentView(name) {
     try {
@@ -228,6 +229,24 @@
       msg.className = "flash";
     }
     form?.reset();
+  }
+
+  function getResetTokenFromUrl() {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      const token = p.get("token");
+      return token && token.trim() ? token.trim() : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function clearResetTokenFromUrl() {
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete("token");
+      history.replaceState({}, "", u.pathname + u.search + u.hash);
+    } catch (_) {}
   }
 
   function resetCooperationUi() {
@@ -1367,10 +1386,11 @@
     }
   });
 
-  document.getElementById("form-forgot-password")?.addEventListener("submit", (e) => {
+  document.getElementById("form-forgot-password")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const msg = document.getElementById("forgot-password-message");
-    const fd = new FormData(e.target);
+    const submitBtn = e.currentTarget.querySelector('button[type="submit"]');
+    const fd = new FormData(e.currentTarget);
     const email = String(fd.get("email") || "").trim();
     const basicOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     if (!email || !basicOk) {
@@ -1384,29 +1404,38 @@
       msg.textContent = "";
       msg.className = "flash";
     }
-    // TODO(backend): заменить локальный успех реальным POST /auth/password/forgot
-    // и показывать одинаковый ответ независимо от существования email.
-    const masked = document.getElementById("forgot-email-masked");
-    if (masked) masked.textContent = maskEmailHalf(email);
-    document.getElementById("forgot-password-step-form")?.classList.add("hidden");
-    document.getElementById("forgot-password-step-sent")?.classList.remove("hidden");
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.dataset.label = submitBtn.textContent;
+      submitBtn.textContent = "Отправляем...";
+    }
+    try {
+      await apiFetch("/auth/password-reset/request", {
+        method: "POST",
+        body: { email },
+      });
+      const masked = document.getElementById("forgot-email-masked");
+      if (masked) masked.textContent = maskEmailHalf(email);
+      document.getElementById("forgot-password-step-form")?.classList.add("hidden");
+      document.getElementById("forgot-password-step-sent")?.classList.remove("hidden");
+    } catch (err) {
+      if (msg) {
+        msg.className = "flash flash-error";
+        msg.textContent = err.message || "Не удалось отправить письмо.";
+      }
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = submitBtn.dataset.label || "Отправить письмо";
+      }
+    }
   });
 
-  document.getElementById("btn-profile-forgot-password")?.addEventListener("click", () => {
-    openForgotPasswordFromProfileModal();
-  });
-
-  document.getElementById("btn-profile-forgot-done")?.addEventListener("click", closeProfileModals);
-
-  document.getElementById("btn-profile-modal-cancel")?.addEventListener("click", closeProfileModals);
-  document.getElementById("btn-profile-password-cancel")?.addEventListener("click", closeProfileModals);
-  document.getElementById("btn-profile-reset-password-cancel")?.addEventListener("click", closeProfileModals);
-  document.getElementById("profile-modal-scrim")?.addEventListener("click", closeProfileModals);
-
-  document.getElementById("form-profile-reset-password")?.addEventListener("submit", (e) => {
+  document.getElementById("form-profile-reset-password")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const msg = document.getElementById("profile-modal-reset-password-msg");
-    const fd = new FormData(e.target);
+    const fd = new FormData(e.currentTarget);
+    const submitBtn = e.currentTarget.querySelector('button[type="submit"]');
     const a = String(fd.get("new_password") || "");
     const b = String(fd.get("new_password_confirm") || "");
     if (a !== b) {
@@ -1423,115 +1452,45 @@
       }
       return;
     }
-    // TODO(backend): заменить заглушку реальным POST/PATCH reset-password
-    // с token/code из ссылки письма и новым паролем.
-    if (msg) {
-      msg.className = "flash flash-info";
-      msg.textContent =
-        "Интерфейс готов. Сохранение нового пароля по ссылке из письма заработает после подключения сервера восстановления.";
-    }
-  });
-
-  document.getElementById("form-profile-change-username")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const msg = document.getElementById("profile-modal-change-msg");
-    const fd = new FormData(e.target);
-    const username = String(fd.get("username") || "").trim();
-    if (username.length < 3) {
+    if (!resetPasswordToken) {
       if (msg) {
         msg.className = "flash flash-error";
-        msg.textContent = "Минимум 3 символа в имени.";
+        msg.textContent = "Ссылка недействительна или уже использована.";
       }
       return;
     }
-    if (msg) {
-      msg.textContent = "";
-      msg.className = "flash";
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.dataset.label = submitBtn.textContent;
+      submitBtn.textContent = "Сохраняем...";
     }
     try {
-      await apiFetch("/auth/me", { method: "PATCH", body: { username } });
-      invalidateAuthMeCache();
-      updateAuthNav();
-      closeProfileModals();
-      const pm = document.getElementById("profile-message");
-      if (pm) {
-        pm.className = "flash flash-success";
-        pm.textContent = "Имя героя обновлено.";
-      }
-      if (document.body.getAttribute("data-view") === "profile") loadProfile();
-    } catch (err) {
-      if (msg) {
-        msg.className = "flash flash-error";
-        const detail = err.message || "";
-        const ru =
-          detail === "Username already taken"
-            ? "Это имя уже занято."
-            : detail === "This username is reserved"
-              ? "Это имя зарезервировано."
-              : detail === "Username must be at least 3 characters"
-                ? "Минимум 3 символа в имени."
-                : detail;
-        msg.textContent = ru;
-      }
-    }
-  });
-
-  document.getElementById("form-profile-change-password")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const msg = document.getElementById("profile-modal-password-msg");
-    const fd = new FormData(e.target);
-    const currentPassword = String(fd.get("current_password") || "");
-    const newPassword = String(fd.get("new_password") || "");
-    const newPasswordConfirm = String(fd.get("new_password_confirm") || "");
-
-    if (newPassword !== newPasswordConfirm) {
-      if (msg) {
-        msg.className = "flash flash-error";
-        msg.textContent = "Новый пароль и повтор не совпадают.";
-      }
-      return;
-    }
-    if (newPassword.length < 8) {
-      if (msg) {
-        msg.className = "flash flash-error";
-        msg.textContent = "Новый пароль должен быть не короче 8 символов.";
-      }
-      return;
-    }
-    if (msg) {
-      msg.textContent = "";
-      msg.className = "flash";
-    }
-    try {
-      await apiFetch("/auth/me/password", {
-        method: "PATCH",
-        body: { current_password: currentPassword, new_password: newPassword },
+      await apiFetch("/auth/password-reset/confirm", {
+        method: "POST",
+        body: { token: resetPasswordToken, new_password: a },
       });
-      closeProfileModals();
-      const pm = document.getElementById("profile-message");
-      if (pm) {
-        pm.className = "flash flash-success";
-        pm.textContent = "Пароль обновлён.";
+      resetPasswordToken = null;
+      clearResetTokenFromUrl();
+      if (msg) {
+        msg.className = "flash flash-success";
+        msg.textContent = "Пароль успешно изменен. Теперь войдите с новым паролем.";
       }
+      window.setTimeout(() => {
+        closeProfileModals();
+        showView("login");
+      }, 700);
     } catch (err) {
       if (msg) {
         msg.className = "flash flash-error";
-        const detail = err.message || "";
-        const ru =
-          detail === "Current password is incorrect"
-            ? "Старый пароль введён неверно."
-            : detail === "New password must differ from the current password"
-              ? "Новый пароль должен отличаться от текущего."
-              : detail;
-        msg.textContent = ru;
+        msg.textContent = err.message || "Не удалось изменить пароль.";
+      }
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = submitBtn.dataset.label || "Сохранить пароль";
       }
     }
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    if (!profileModalOverlay || profileModalOverlay.classList.contains("hidden")) return;
-    closeProfileModals();
   });
 
   /** Фоновые монеты: координаты страницы (скролл), столкновения, звёзды-GIF при ударе. */
@@ -1862,12 +1821,11 @@
   updateAuthNav();
   showView(readStoredView());
   try {
-    const p = new URLSearchParams(window.location.search);
-    if (p.get("wc_l_reset") === "1") {
+    const token = getResetTokenFromUrl();
+    if (token) {
+      resetPasswordToken = token;
+      showView("login");
       requestAnimationFrame(() => openResetPasswordModal());
-      const u = new URL(window.location.href);
-      u.searchParams.delete("wc_l_reset");
-      history.replaceState({}, "", u.pathname + u.search + u.hash);
     }
   } catch (_) {}
 })();

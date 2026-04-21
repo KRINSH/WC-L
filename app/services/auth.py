@@ -1,18 +1,34 @@
-from sqlalchemy import or_, select
+from datetime import datetime, timedelta, timezone
+import hashlib
+import logging
+import secrets
+
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.mc_avatar import ALLOWED_MC_AVATAR_VARIANTS
 from app.core.security import create_access_token, hash_password, verify_password
+from app.models.password_reset_token import PasswordResetToken
 from app.models.user import User
 from app.schemas.auth import UserCreate, UserSelfUpdate
+from app.services.email import send_password_reset_email
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 # Small custom exception so the router can turn auth failures into nice HTTP errors.
 class AuthError(Exception):
     pass
+
+
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def hash_password_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def create_user(db: Session, data: UserCreate) -> User:
@@ -22,7 +38,7 @@ def create_user(db: Session, data: UserCreate) -> User:
 
     # Prevent duplicate accounts by checking username and email before insert.
     existing_user = db.scalar(
-        select(User).where(or_(User.username == data.username, User.email == data.email))
+        select(User).where(or_(User.username == data.username, User.email == str(data.email).lower()))
     )
     if existing_user is not None:
         raise AuthError("Username or email already exists")
@@ -30,7 +46,7 @@ def create_user(db: Session, data: UserCreate) -> User:
     # Create the user with a hashed password so the database never stores plain text.
     user = User(
         username=data.username,
-        email=str(data.email),
+        email=_normalize_email(str(data.email)),
         password_hash=hash_password(data.password),
         is_banned=False,
     )
@@ -43,7 +59,15 @@ def create_user(db: Session, data: UserCreate) -> User:
 
 def authenticate_user(db: Session, login: str, password: str) -> User | None:
     # Allow users to sign in with either username or email.
-    user = db.scalar(select(User).where(or_(User.username == login, User.email == login)))
+    normalized_login = login.strip()
+    user = db.scalar(
+        select(User).where(
+            or_(
+                User.username == normalized_login,
+                User.email == normalized_login.lower(),
+            )
+        )
+    )
     if user is None:
         return None
     # Only banned users are blocked at login.
@@ -103,3 +127,83 @@ def change_user_password(db: Session, user: User, current_password: str, new_pas
     db.commit()
 
 
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _as_utc(value: datetime) -> datetime:
+    # SQLite may return naive datetimes; treat them as UTC for consistent comparisons.
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+def request_password_reset(db: Session, email: str) -> None:
+    normalized_email = _normalize_email(email)
+    user = db.scalar(select(User).where(User.email == normalized_email))
+    if user is None:
+        return
+
+    # Ensure one active reset token per user to keep the flow simple and predictable.
+    db.execute(
+        delete(PasswordResetToken).where(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used_at.is_(None),
+        )
+    )
+
+    raw_token = secrets.token_urlsafe(32)
+    token_record = PasswordResetToken(
+        user_id=user.id,
+        token_hash=hash_password_reset_token(raw_token),
+        expires_at=_utc_now() + timedelta(minutes=settings.password_reset_token_ttl_minutes),
+    )
+    db.add(token_record)
+    db.commit()
+
+    try:
+        send_password_reset_email(
+            to_email=user.email,
+            username=user.username,
+            token=raw_token,
+        )
+    except Exception:
+        # Keep API response generic even when SMTP is temporarily unavailable.
+        logger.exception("Failed to send password reset email")
+
+
+def confirm_password_reset(db: Session, token: str, new_password: str) -> None:
+    token_record = db.scalar(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == hash_password_reset_token(token),
+            PasswordResetToken.used_at.is_(None),
+        )
+    )
+    if token_record is None:
+        raise AuthError("Invalid or expired reset token")
+
+    now = _utc_now()
+    if _as_utc(token_record.expires_at) <= now:
+        raise AuthError("Invalid or expired reset token")
+
+    user = db.get(User, token_record.user_id)
+    if user is None:
+        raise AuthError("Invalid or expired reset token")
+
+    if verify_password(new_password, user.password_hash):
+        raise AuthError("New password must differ from the current password")
+
+    user.password_hash = hash_password(new_password)
+    token_record.used_at = now
+
+    # Mark any other still-active tokens as used so links cannot be reused later.
+    db.execute(
+        update(PasswordResetToken)
+        .where(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used_at.is_(None),
+            PasswordResetToken.id != token_record.id,
+        )
+        .values(used_at=now)
+    )
+    db.commit()

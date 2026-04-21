@@ -86,6 +86,9 @@ The backend now serves the frontend from `frontend/`:
 - Use `DEBUG=true` only for local development; keep `DEBUG=false` in production
 - If frontend runs on another origin (Live Server/Vite), set `CORS_ALLOW_ORIGINS` accordingly
 - Keep `.env` local (it is ignored by `.gitignore`)
+- For password reset links, set `PASSWORD_RESET_URL_BASE` to your frontend route (for example, `https://your-site/reset-password`)
+- Enable SMTP delivery only when ready: `PASSWORD_RESET_EMAIL_ENABLED=true`
+- Set `SMTP_SECURITY`: `ssl` for port `465`, `starttls` for port `587`, `none` for local debug SMTP
 
 ```powershell
 Copy-Item .env.example .env
@@ -101,6 +104,18 @@ Example CORS list for local frontend dev:
 
 ```dotenv
 CORS_ALLOW_ORIGINS=["http://127.0.0.1:5500","http://localhost:5500","http://127.0.0.1:5501","http://localhost:5501","http://127.0.0.1:5173","http://localhost:5173","http://127.0.0.1:3000","http://localhost:3000"]
+```
+
+Mail.ru SMTP example (SSL):
+
+```dotenv
+PASSWORD_RESET_EMAIL_ENABLED=true
+SMTP_HOST=smtp.mail.ru
+SMTP_PORT=465
+SMTP_USER=project@wc-legend.ru
+SMTP_PASSWORD=your_mail_password_or_app_password
+SMTP_FROM_EMAIL=project@wc-legend.ru
+SMTP_SECURITY=ssl
 ```
 
 ## Database migrations
@@ -152,6 +167,9 @@ The script creates a user if missing, or promotes/updates an existing one by use
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
 - `GET /api/v1/auth/me`
+- `POST /api/v1/auth/password-reset/request`
+- `POST /api/v1/auth/password-reset/confirm`
+
 
 ## Admin endpoints (MVP)
 
