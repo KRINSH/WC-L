@@ -1,0 +1,15 @@
+[project]
+name = "wc-l"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.18.4",
+    "bcrypt>=5.0.0",
+    "fastapi>=0.136.0",
+    "pytest>=9.0.3",
+    "python-jose>=3.5.0",
+    "sqlalchemy>=2.0.49",
+    "uvicorn>=0.44.0",
+]

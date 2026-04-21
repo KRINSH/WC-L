@@ -5,9 +5,10 @@ A minimal FastAPI + SQLAlchemy + SQLite starter for a Minecraft server website.
 ## Quick start
 
 ```powershell
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload
+uv venv .venv
+uv sync
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
 ```
 
 Open:
@@ -55,14 +56,15 @@ tests/
 Create and activate a virtual environment, then install dependencies:
 
 ```powershell
-pip install -r requirements.txt
+uv venv .venv
+uv sync
 ```
 
 ## Run the app
 
 ```powershell
-alembic upgrade head
-uvicorn app.main:app --reload
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
 ```
 
 Then open:
@@ -108,17 +110,17 @@ Alembic is used to manage schema changes.
 Useful commands:
 
 ```powershell
-alembic revision --autogenerate -m "describe change"
-alembic upgrade head
-alembic downgrade -1
+uv run alembic revision --autogenerate -m "describe change"
+uv run alembic upgrade head
+uv run alembic downgrade -1
 ```
 
-The app no longer creates tables at runtime, so run `alembic upgrade head` before starting the server.
+The app no longer creates tables at runtime, so run `uv run alembic upgrade head` before starting the server.
 
 ## Test
 
 ```powershell
-pytest
+uv run pytest
 ```
 
 ## Create first admin (real DB)
@@ -127,13 +129,13 @@ Tests seed an admin automatically, but real environments do not.
 Use the bootstrap script after migrations:
 
 ```powershell
-python scripts/create_admin.py --email admin@example.com
+uv run python scripts/create_admin.py --email admin@example.com
 ```
 
 You can also pass all fields directly:
 
 ```powershell
-python scripts/create_admin.py --username admin --email admin@example.com --password AdminPass123
+uv run python scripts/create_admin.py --username admin --email admin@example.com --password AdminPass123
 ```
 
 The script creates a user if missing, or promotes/updates an existing one by username/email.
@@ -162,11 +164,9 @@ Admin access in MVP is based on the user flag `is_admin` in the database.
 
 ## Pre-commit checklist
 
-- Run tests: `pytest`
-- Ensure migration head applies: `alembic upgrade head`
+- Run tests: `uv run pytest`
+- Ensure migration head applies: `uv run alembic upgrade head`
 - Keep temp files out of commit (`__pycache__`, `*.pyc`, `*.db`, `.env`, `.venv`)
 - Confirm `.env` secrets are not tracked
 - Verify README commands still match current project behavior
-
-
 
