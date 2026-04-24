@@ -100,6 +100,51 @@ def test_login_rejects_invalid_password() -> None:
         assert login_response.json()["detail"] == "Invalid credentials"
 
 
+def test_login_sets_one_minute_lock_after_wrong_password() -> None:
+    with TestClient(app) as client:
+        suffix = uuid4().hex[:8]
+        username = f"lock_{suffix}"
+        email = f"{username}@example.com"
+        password = "strongpassword123"
+
+        client.post(
+            "/api/v1/auth/register",
+            json={"username": username, "email": email, "password": password},
+        )
+
+        # First wrong password creates a temporary lock.
+        wrong = client.post(
+            "/api/v1/auth/login",
+            json={"login": username, "password": "wrongpassword"},
+        )
+        assert wrong.status_code == 401
+
+        with SessionLocal() as db:
+            user = db.scalar(select(User).where(User.username == username))
+            assert user is not None
+            assert user.login_locked_until is not None
+
+        # Correct password still fails while lock is active.
+        during_lock = client.post(
+            "/api/v1/auth/login",
+            json={"login": username, "password": password},
+        )
+        assert during_lock.status_code == 401
+
+        # Simulate timeout expiry without waiting 60 real seconds.
+        with SessionLocal() as db:
+            user = db.scalar(select(User).where(User.username == username))
+            assert user is not None
+            user.login_locked_until = datetime.now(timezone.utc) - timedelta(seconds=1)
+            db.commit()
+
+        after_timeout = client.post(
+            "/api/v1/auth/login",
+            json={"login": username, "password": password},
+        )
+        assert after_timeout.status_code == 200
+
+
 def test_change_password_success() -> None:
     with TestClient(app) as client:
         suffix = uuid4().hex[:8]
@@ -129,6 +174,13 @@ def test_change_password_success() -> None:
             ).status_code
             == 401
         )
+
+        with SessionLocal() as db:
+            user = db.scalar(select(User).where(User.username == username))
+            assert user is not None
+            user.login_locked_until = datetime.now(timezone.utc) - timedelta(seconds=1)
+            db.commit()
+
         assert (
             client.post(
                 "/api/v1/auth/login",
@@ -420,6 +472,13 @@ def test_password_reset_confirm_updates_password_and_invalidates_token() -> None
             ).status_code
             == 401
         )
+
+        with SessionLocal() as db:
+            user = db.scalar(select(User).where(User.username == username))
+            assert user is not None
+            user.login_locked_until = datetime.now(timezone.utc) - timedelta(seconds=1)
+            db.commit()
+
         assert (
             client.post(
                 "/api/v1/auth/login",

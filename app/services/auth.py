@@ -17,6 +17,9 @@ from app.services.email import send_password_reset_email
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
+# A failed login blocks further attempts for exactly one minute.
+LOGIN_LOCK_MINUTES = 1
+
 
 # Small custom exception so the router can turn auth failures into nice HTTP errors.
 class AuthError(Exception):
@@ -70,12 +73,27 @@ def authenticate_user(db: Session, login: str, password: str) -> User | None:
     )
     if user is None:
         return None
+
+    now = _utc_now()
+
     # Only banned users are blocked at login.
     if user.is_banned:
         return None
+
+    # Reject login while temporary lock is still active.
+    if user.login_locked_until is not None and _as_utc(user.login_locked_until) > now:
+        return None
+
     # Reject the login if the password does not match the stored hash.
     if not verify_password(password, user.password_hash):
+        user.login_locked_until = now + timedelta(minutes=LOGIN_LOCK_MINUTES)
+        db.commit()
         return None
+
+    # Successful login clears old lock values so next auth is not blocked.
+    if user.login_locked_until is not None:
+        user.login_locked_until = None
+        db.commit()
     return user
 
 
