@@ -303,6 +303,17 @@
     form?.reset();
   }
 
+  function requireAuthForCooperation() {
+    if (getToken()) return true;
+    showView("login");
+    const loginMsg = document.getElementById("login-message");
+    if (loginMsg) {
+      loginMsg.className = "flash flash-error";
+      loginMsg.textContent = "Для раздела «Сотрудничество» нужно войти в аккаунт или зарегистрироваться.";
+    }
+    return false;
+  }
+
   const staffState = {
     cache: { admin: null },
     selectedId: { admin: null },
@@ -498,6 +509,7 @@
   }
 
   function showView(name) {
+    if (name === "cooperation" && !requireAuthForCooperation()) return;
     closeNavMobile();
     persistCurrentView(name);
     document.body.setAttribute("data-view", name);
@@ -549,6 +561,11 @@
     if (!navEl || navEl.closest("a[href]")) return;
     const name = navEl.getAttribute("data-nav");
     if (!name) return;
+    if (name === "cooperation" && !getToken()) {
+      e.preventDefault();
+      requireAuthForCooperation();
+      return;
+    }
     e.preventDefault();
     showView(name);
   });
@@ -653,8 +670,9 @@
     });
   }
 
-  document.getElementById("form-cooperation")?.addEventListener("submit", (e) => {
+  document.getElementById("form-cooperation")?.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (!requireAuthForCooperation()) return;
     const form = e.currentTarget;
     const msg = document.getElementById("cooperation-message");
     const fd = new FormData(form);
@@ -668,27 +686,25 @@
     }
     const endpoint = form.getAttribute("data-cooperation-endpoint")?.trim();
     if (endpoint) {
-      void (async () => {
-        try {
-          let path = endpoint;
-          if (path.startsWith("/api/v1")) path = path.slice("/api/v1".length) || "/";
-          if (!path.startsWith("/")) path = `/${path}`;
-          await apiFetch(path, {
-            method: form.getAttribute("data-cooperation-method")?.trim() || "POST",
-            body: { contact },
-          });
-          if (msg) {
-            msg.className = "flash flash-success";
-            msg.textContent = "Заявка отправлена.";
-          }
-          form.reset();
-        } catch (err) {
-          if (msg) {
-            msg.className = "flash flash-error";
-            msg.textContent = err.message || "Не удалось отправить.";
-          }
+      try {
+        let path = endpoint;
+        if (path.startsWith("/api/v1")) path = path.slice("/api/v1".length) || "/";
+        if (!path.startsWith("/")) path = `/${path}`;
+        await apiFetch(path, {
+          method: form.getAttribute("data-cooperation-method")?.trim() || "POST",
+          body: { contact },
+        });
+        if (msg) {
+          msg.className = "flash flash-success";
+          msg.textContent = "Заявка отправлена.";
         }
-      })();
+        form.reset();
+      } catch (err) {
+        if (msg) {
+          msg.className = "flash flash-error";
+          msg.textContent = err.message || "Не удалось отправить.";
+        }
+      }
       return;
     }
     if (msg) {
